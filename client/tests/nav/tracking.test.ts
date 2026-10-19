@@ -1,4 +1,4 @@
-import { buildCumulativeDistances } from './geo';
+import { buildCumulativeDistances } from '@/nav/geo';
 import {
   RerouteDetector,
   formatDistanceRu,
@@ -7,8 +7,8 @@ import {
   roundDistanceMeters,
   shouldSendProgress,
   trackPosition,
-} from './tracking';
-import type { LatLng, Route } from './types';
+} from '@/nav/tracking';
+import type { LatLng, Route } from '@/nav/types';
 
 const shape: LatLng[] = [
   { lat: 0, lon: 0 },

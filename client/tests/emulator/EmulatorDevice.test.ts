@@ -1,8 +1,8 @@
-import { encodeControlMessage } from '../ble/protocol/control';
-import { encodeDisplayMessage } from '../ble/protocol/display';
-import { fragmentPacket } from '../ble/protocol/fragment';
-import { GlassesApi } from '../glasses/api';
-import { EmulatorDevice } from './EmulatorDevice';
+import { encodeControlMessage } from '@/ble/protocol/control';
+import { encodeDisplayMessage } from '@/ble/protocol/display';
+import { fragmentPacket } from '@/ble/protocol/fragment';
+import { GlassesApi } from '@/glasses/api';
+import { EmulatorDevice } from '@/emulator/EmulatorDevice';
 
 describe('EmulatorDevice: writeDisplay декодирует те же байты и обновляет экран', () => {
   it('через GlassesApi.showManeuver экран получает манёвр', async () => {

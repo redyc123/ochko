@@ -8,7 +8,7 @@ import {
   truncateUtf8,
   utf8Decode,
   utf8Encode,
-} from './bytes';
+} from '@/ble/protocol/bytes';
 
 describe('ByteWriter/ByteReader', () => {
   it('кодирует и читает все числовые типы little-endian', () => {

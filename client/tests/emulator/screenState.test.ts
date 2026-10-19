@@ -1,5 +1,9 @@
-import { NotifyApp } from '../ble/protocol/display';
-import { applyDisplayMessage, createInitialScreenState, selectActiveContent } from './screenState';
+import { NotifyApp } from '@/ble/protocol/display';
+import {
+  applyDisplayMessage,
+  createInitialScreenState,
+  selectActiveContent,
+} from '@/emulator/screenState';
 
 describe('applyDisplayMessage', () => {
   it('NOTIFY обновляет только слой notify', () => {

@@ -1,4 +1,4 @@
-import { paginate, wrapToLines } from './textLayout';
+import { paginate, wrapToLines } from '@/emulator/textLayout';
 
 describe('wrapToLines', () => {
   it('короткий текст — одна строка', () => {

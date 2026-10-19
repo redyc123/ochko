@@ -1,9 +1,9 @@
-import { NavState } from '../ble/protocol/display';
-import { ManeuverIcon } from '../nav/maneuverMap';
-import { encodePolyline6 } from '../nav/polyline';
-import type { LatLng } from '../nav/types';
-import { useDeviceStore } from './deviceStore';
-import { useNavStore } from './navStore';
+import { NavState } from '@/ble/protocol/display';
+import { ManeuverIcon } from '@/nav/maneuverMap';
+import { encodePolyline6 } from '@/nav/polyline';
+import type { LatLng } from '@/nav/types';
+import { useDeviceStore } from '@/store/deviceStore';
+import { useNavStore } from '@/store/navStore';
 
 const ORIGIN: LatLng = { lat: 0, lon: 0 };
 

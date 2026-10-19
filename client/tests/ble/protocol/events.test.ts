@@ -1,5 +1,5 @@
-import { bytesToHex, hexToBytes } from './bytes';
-import { decodeEvent, encodeEvent, type GlassesEvent } from './events';
+import { bytesToHex, hexToBytes } from '@/ble/protocol/bytes';
+import { decodeEvent, encodeEvent, type GlassesEvent } from '@/ble/protocol/events';
 
 describe('events', () => {
   it('BUTTON короткое нажатие', () => {

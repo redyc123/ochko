@@ -1,4 +1,4 @@
-import { decodePolyline6, encodePolyline6 } from './polyline';
+import { decodePolyline6, encodePolyline6 } from '@/nav/polyline';
 
 describe('decodePolyline6', () => {
   it('декодирует известную строку polyline6 (пример из документации Valhalla)', () => {

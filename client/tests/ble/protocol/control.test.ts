@@ -1,5 +1,9 @@
-import { bytesToHex, hexToBytes } from './bytes';
-import { decodeControlMessage, encodeControlMessage, type ControlMessage } from './control';
+import { bytesToHex, hexToBytes } from '@/ble/protocol/bytes';
+import {
+  decodeControlMessage,
+  encodeControlMessage,
+  type ControlMessage,
+} from '@/ble/protocol/control';
 
 describe('control', () => {
   it('SET_TIME', () => {

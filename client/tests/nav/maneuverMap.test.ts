@@ -3,7 +3,7 @@ import {
   ValhallaManeuverType,
   mapValhallaManeuverToIcon,
   usesExitNumber,
-} from './maneuverMap';
+} from '@/nav/maneuverMap';
 
 describe('mapValhallaManeuverToIcon', () => {
   it('базовые повороты', () => {

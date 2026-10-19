@@ -1,6 +1,6 @@
-import { NavState } from '../ble/protocol/display';
-import { ManeuverIcon } from '../nav/maneuverMap';
-import { agentStateLabel, iconGlyph, navStateLabel } from './render';
+import { NavState } from '@/ble/protocol/display';
+import { ManeuverIcon } from '@/nav/maneuverMap';
+import { agentStateLabel, iconGlyph, navStateLabel } from '@/emulator/render';
 
 describe('iconGlyph', () => {
   it('возвращает глиф для каждого известного кода манёвра', () => {

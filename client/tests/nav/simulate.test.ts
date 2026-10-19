@@ -1,5 +1,5 @@
-import { RouteSimulator } from './simulate';
-import type { LatLng, Route } from './types';
+import { RouteSimulator } from '@/nav/simulate';
+import type { LatLng, Route } from '@/nav/types';
 
 const longShape: LatLng[] = [
   { lat: 0, lon: 0 },

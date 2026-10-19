@@ -1,4 +1,4 @@
-import { NominatimClient } from './geocode';
+import { NominatimClient } from '@/nav/geocode';
 
 function makeFetchFn(responseBody: unknown, ok = true, status = 200) {
   return jest.fn(async () => ({

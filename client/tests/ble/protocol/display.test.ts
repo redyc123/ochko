@@ -1,11 +1,11 @@
-import { bytesToHex, hexToBytes } from './bytes';
+import { bytesToHex, hexToBytes } from '@/ble/protocol/bytes';
 import {
   NotifyApp,
   decodeDisplayMessage,
   encodeDisplayMessage,
   STREET_MAX_BYTES,
   type DisplayMessage,
-} from './display';
+} from '@/ble/protocol/display';
 
 // Hex-примеры совпадают байт-в-байт с docs/PROTOCOL.md §3 — это намеренно:
 // один и тот же вектор проверяет и документ, и код.

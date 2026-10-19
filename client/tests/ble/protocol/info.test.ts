@@ -1,5 +1,5 @@
-import { bytesToHex, hexToBytes } from './bytes';
-import { decodeInfo, encodeInfo, type GlassesInfo } from './info';
+import { bytesToHex, hexToBytes } from '@/ble/protocol/bytes';
+import { decodeInfo, encodeInfo, type GlassesInfo } from '@/ble/protocol/info';
 
 describe('info', () => {
   const info: GlassesInfo = {

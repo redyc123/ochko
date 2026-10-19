@@ -1,6 +1,6 @@
-import { base64Decode, base64Encode } from './protocol/bytes';
-import { encodeEvent } from './protocol/events';
-import { encodeInfo } from './protocol/info';
+import { base64Decode, base64Encode } from '@/ble/protocol/bytes';
+import { encodeEvent } from '@/ble/protocol/events';
+import { encodeInfo } from '@/ble/protocol/info';
 import {
   GlassesConnection,
   type GlassesBleManager,
@@ -11,7 +11,7 @@ import {
   isPairingRequiredError,
   mapBleErrorToMessage,
   scanForGlasses,
-} from './connection';
+} from '@/ble/connection';
 
 describe('UUID О.Ч.К.О.', () => {
   it('строятся по шаблону из ТЗ §4.1', () => {

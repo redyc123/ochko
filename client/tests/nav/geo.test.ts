@@ -5,8 +5,8 @@ import {
   pointAtDistance,
   projectPointToSegment,
   snapToShape,
-} from './geo';
-import type { LatLng } from './types';
+} from '@/nav/geo';
+import type { LatLng } from '@/nav/types';
 
 describe('haversineMeters', () => {
   it('1 градус широты — всегда около 111.19 км, независимо от местоположения', () => {

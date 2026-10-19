@@ -1,6 +1,6 @@
-import { ByteWriter, bytesToHex } from './bytes';
-import { encodeHeader } from './header';
-import { PacketReassembler, fragmentPacket } from './fragment';
+import { ByteWriter, bytesToHex } from '@/ble/protocol/bytes';
+import { encodeHeader } from '@/ble/protocol/header';
+import { PacketReassembler, fragmentPacket } from '@/ble/protocol/fragment';
 
 function buildPacket(type: number, seq: number, payloadLen: number): Uint8Array {
   const payload = new Uint8Array(payloadLen);

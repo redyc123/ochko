@@ -1,7 +1,7 @@
-import { decodeControlMessage } from '../ble/protocol/control';
-import { NotifyApp, decodeDisplayMessage } from '../ble/protocol/display';
-import type { GlassesEvent } from '../ble/protocol/events';
-import { GlassesApi, type GlassesTransport } from './api';
+import { decodeControlMessage } from '@/ble/protocol/control';
+import { NotifyApp, decodeDisplayMessage } from '@/ble/protocol/display';
+import type { GlassesEvent } from '@/ble/protocol/events';
+import { GlassesApi, type GlassesTransport } from '@/glasses/api';
 
 function makeFakeTransport() {
   const display: Uint8Array[] = [];

@@ -9,7 +9,8 @@
 и **Этапа 1** (навигатор): протокол, эмулятор очков, геокодинг/роутинг,
 ведение по маршруту, симуляция поездки, экраны «Устройство» и «Навигация».
 Этапы 2–6 (уведомления, аудио/STT, LLM-агент, голос владельца, замеры) —
-следующий шаг, см. `docs/LIMITATIONS.md`.
+следующий шаг, план по ним — в `docs/PLAN.md`, известные ограничения — в
+`docs/LIMITATIONS.md`.
 
 ## Стек
 
@@ -94,8 +95,10 @@ src/
   nav/                    // geo, geocode (Nominatim), router (Valhalla), tracking, simulate
   store/                  // zustand: deviceStore (BLE/эмулятор), navStore (навигация)
   screens/                // DeviceScreen, NavigationScreen, RootNavigator
+tests/                    // зеркалит структуру src/, импорты — через алиас @/
 docs/
   PROTOCOL.md             // протокол v1 с hex-примерами, сверенными с тестами
+  PLAN.md                 // план этапов 2–6
   LIMITATIONS.md
 ```
 

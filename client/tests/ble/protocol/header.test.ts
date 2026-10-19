@@ -1,5 +1,11 @@
-import { bytesToHex, hexToBytes } from './bytes';
-import { HEADER_SIZE, HeaderFlags, decodeHeader, encodeHeader, isUnfragmented } from './header';
+import { bytesToHex, hexToBytes } from '@/ble/protocol/bytes';
+import {
+  HEADER_SIZE,
+  HeaderFlags,
+  decodeHeader,
+  encodeHeader,
+  isUnfragmented,
+} from '@/ble/protocol/header';
 
 describe('заголовок пакета', () => {
   it('кодирует байт-в-байт', () => {

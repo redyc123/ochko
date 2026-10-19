@@ -1,10 +1,10 @@
-import { encodePolyline6 } from './polyline';
+import { encodePolyline6 } from '@/nav/polyline';
 import {
   RouteError,
   ValhallaRouter,
   buildValhallaRequestBody,
   parseValhallaResponse,
-} from './router';
+} from '@/nav/router';
 
 describe('buildValhallaRequestBody', () => {
   it('формирует тело запроса ровно по ТЗ §1.3', () => {

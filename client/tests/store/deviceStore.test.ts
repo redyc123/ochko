@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useDeviceStore } from './deviceStore';
+import { useDeviceStore } from '@/store/deviceStore';
 
 function makeFakeManager() {
   const writeCalls: unknown[] = [];
