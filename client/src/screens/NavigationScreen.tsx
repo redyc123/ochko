@@ -1,14 +1,13 @@
 import * as Location from 'expo-location';
 import React, { useEffect, useRef, useState } from 'react';
 import { FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import MapView, { Marker, Polyline, UrlTile } from 'react-native-maps';
 import { EmulatorScreen } from '../emulator/EmulatorScreen';
 import { formatDistanceRu } from '../nav/tracking';
 import { useDeviceStore } from '../store/deviceStore';
 import { useNavStore } from '../store/navStore';
+import { RouteMap } from './RouteMap';
 
 const SIMULATION_SPEED_OPTIONS = [1, 2, 5, 10] as const;
-const OSM_TILE_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 
 const STATUS_LABELS: Record<string, string> = {
   idle: 'Готово к вводу цели',
@@ -88,15 +87,6 @@ export function NavigationScreen(): React.JSX.Element {
     }
   };
 
-  const mapRegion = currentPosition
-    ? {
-        latitude: currentPosition.lat,
-        longitude: currentPosition.lon,
-        latitudeDelta: 0.01,
-        longitudeDelta: 0.01,
-      }
-    : undefined;
-
   return (
     <View style={styles.container}>
       <View style={styles.searchRow}>
@@ -130,26 +120,11 @@ export function NavigationScreen(): React.JSX.Element {
 
       {route && (
         <>
-          <MapView style={styles.map} region={mapRegion} mapType="none">
-            <UrlTile urlTemplate={OSM_TILE_URL} maximumZ={19} />
-            <Polyline
-              coordinates={route.shape.map((p) => ({ latitude: p.lat, longitude: p.lon }))}
-              strokeWidth={4}
-              strokeColor="#2e7d32"
-            />
-            {currentPosition && (
-              <Marker
-                coordinate={{ latitude: currentPosition.lat, longitude: currentPosition.lon }}
-                title="Я"
-              />
-            )}
-            {destination && (
-              <Marker
-                coordinate={{ latitude: destination.lat, longitude: destination.lon }}
-                title="Цель"
-              />
-            )}
-          </MapView>
+          <RouteMap
+            shape={route.shape}
+            currentPosition={currentPosition}
+            destination={destination}
+          />
           <Text style={styles.attribution}>© участники OpenStreetMap</Text>
 
           <ScrollView style={styles.maneuverList}>
@@ -226,7 +201,6 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   candidateRow: { paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#eee' },
-  map: { height: 220, borderRadius: 8 },
   attribution: { fontSize: 10, color: '#888' },
   maneuverList: { maxHeight: 120 },
   maneuverRow: { paddingVertical: 4 },
