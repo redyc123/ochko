@@ -1,0 +1,63 @@
+{
+  "expo": {
+    "name": "О.Ч.К.О.",
+    "slug": "ochko-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "scheme": "ochko",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "ru.ochko.app",
+      "infoPlist": {
+        "NSBluetoothAlwaysUsageDescription": "Приложению нужен Bluetooth для подключения к смарт-очкам О.Ч.К.О.",
+        "NSLocationWhenInUseUsageDescription": "Нужно для построения маршрута и навигации на очках.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Нужно, чтобы навигация продолжала работать, когда приложение свёрнуто.",
+        "UIBackgroundModes": ["bluetooth-central", "location"]
+      }
+    },
+    "android": {
+      "package": "ru.ochko.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.BLUETOOTH_CONNECT",
+        "android.permission.BLUETOOTH_SCAN",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_BACKGROUND_LOCATION",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE",
+        "android.permission.FOREGROUND_SERVICE_LOCATION"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-dev-client",
+      [
+        "react-native-ble-plx",
+        {
+          "isBackgroundEnabled": true,
+          "modes": ["central"],
+          "bluetoothAlwaysPermission": "Приложению нужен Bluetooth для подключения к смарт-очкам О.Ч.К.О."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Нужно, чтобы навигация продолжала работать, когда приложение свёрнуто.",
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
+        }
+      ]
+    ]
+  }
+}
