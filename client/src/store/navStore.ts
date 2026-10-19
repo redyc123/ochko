@@ -29,8 +29,14 @@ export type NavStatus =
 
 const DEFAULT_NOMINATIM_BASE_URL = 'https://nominatim.openstreetmap.org';
 const DEFAULT_VALHALLA_BASE_URL = 'https://valhalla1.openstreetmap.de';
-/** Контакт обязателен правилами публичного Nominatim — замените на свой при продакшн-использовании. */
-const NOMINATIM_USER_AGENT = 'ochko-app/0.1 (дипломный проект О.Ч.К.О.; https://github.com/)';
+/**
+ * Контакт обязателен правилами публичного Nominatim — замените на свой при
+ * продакшн-использовании. Строго ASCII: значение HTTP-заголовка не может
+ * содержать кириллицу — браузер (fetch) бросает исключение ещё до отправки
+ * запроса, если в нём встречаются не-ISO-8859-1 символы.
+ */
+const NOMINATIM_USER_AGENT =
+  'ochko-app/0.1 (OCHKO smart glasses diploma project; https://github.com/)';
 /** ~5.5 км вокруг пользователя — оценка, не измерено. */
 const VIEWBOX_DELTA_DEG = 0.05;
 const AUTO_SELECT_SINGLE_RESULT = true;
