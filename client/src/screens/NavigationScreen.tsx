@@ -137,7 +137,7 @@ export function NavigationScreen(): React.JSX.Element {
 
           <View style={styles.row}>
             {(status === 'ready' || status === 'arrived') && (
-              <Pressable style={styles.button} onPress={startNavigation}>
+              <Pressable style={styles.button} onPress={() => startNavigation(Date.now())}>
                 <Text style={styles.buttonText}>Начать</Text>
               </Pressable>
             )}

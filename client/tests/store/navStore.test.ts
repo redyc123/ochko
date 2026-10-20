@@ -150,7 +150,7 @@ describe('startNavigation / stopNavigation', () => {
     });
     await useNavStore.getState().navigateTo('цель');
 
-    useNavStore.getState().startNavigation();
+    useNavStore.getState().startNavigation(0);
 
     expect(useNavStore.getState().status).toBe('navigating');
     expect(useDeviceStore.getState().emulator.getScreenState().nav.state).toBe(NavState.GUIDING);
@@ -164,7 +164,7 @@ describe('startNavigation / stopNavigation', () => {
       osrm: osrmRouteFor(shape, [{ type: 'depart' }, { type: 'arrive' }]),
     });
     await useNavStore.getState().navigateTo('цель');
-    useNavStore.getState().startNavigation();
+    useNavStore.getState().startNavigation(0);
 
     useNavStore.getState().stopNavigation();
 
@@ -187,7 +187,7 @@ describe('updatePosition: манёвры, прогресс, прибытие', (
       osrm: osrmRouteFor(shape, [{ type: 'depart' }, { type: 'turn', modifier: 'right' }]),
     });
     await useNavStore.getState().navigateTo('цель');
-    useNavStore.getState().startNavigation();
+    useNavStore.getState().startNavigation(0);
     return shape;
   }
 
@@ -250,13 +250,35 @@ describe('checkGpsTimeout', () => {
       osrm: osrmRouteFor(shape, [{ type: 'depart' }, { type: 'arrive' }]),
     });
     await useNavStore.getState().navigateTo('цель');
-    useNavStore.getState().startNavigation();
+    useNavStore.getState().startNavigation(0);
     useNavStore.getState().updatePosition(ORIGIN, 0);
 
     useNavStore.getState().checkGpsTimeout(10_001);
 
     expect(useNavStore.getState().gpsOk).toBe(false);
     expect(useDeviceStore.getState().emulator.getScreenState().nav.state).toBe(NavState.NO_GPS);
+  });
+
+  it('startNavigation сбрасывает отсчёт устаревания — старый фикс до старта не триггерит NO_GPS сразу', async () => {
+    useNavStore.getState().updatePosition(ORIGIN, 0); // фикс есть, но он «старый» на момент старта
+    const shape = [ORIGIN, { lat: 0, lon: 0.002 }];
+    (globalThis as unknown as { fetch: jest.Mock }).fetch = mockFetch({
+      nominatim: [nominatimResult(0, 0.002)],
+      osrm: osrmRouteFor(shape, [{ type: 'depart' }, { type: 'arrive' }]),
+    });
+    await useNavStore.getState().navigateTo('цель');
+
+    // Старт навигации случился спустя 20с после последнего фикса (например,
+    // пользователь долго выбирал вариант маршрута) — TTFF на реальном GPS
+    // после этого тоже может занять время, поэтому отсчёт идёт заново.
+    useNavStore.getState().startNavigation(20_000);
+
+    useNavStore.getState().checkGpsTimeout(20_500);
+    expect(useNavStore.getState().gpsOk).toBe(true);
+
+    // Но если фикса всё ещё нет спустя >10с от самого старта — таймаут сработает.
+    useNavStore.getState().checkGpsTimeout(30_001);
+    expect(useNavStore.getState().gpsOk).toBe(false);
   });
 });
 
@@ -272,7 +294,7 @@ describe('enableSimulation / tickSimulation', () => {
       osrm: osrmRouteFor(shape, [{ type: 'depart' }, { type: 'arrive' }]),
     });
     await useNavStore.getState().navigateTo('далёкая цель');
-    useNavStore.getState().startNavigation();
+    useNavStore.getState().startNavigation(0);
 
     useNavStore.getState().enableSimulation(true, 10);
     expect(useNavStore.getState().simulator).not.toBeNull();

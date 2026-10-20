@@ -63,7 +63,7 @@ export interface NavStoreState {
   setSettings: (settings: Partial<NavSettings>) => void;
   navigateTo: (query: string) => Promise<void>;
   chooseDestination: (candidate: GeocodeResult) => Promise<void>;
-  startNavigation: () => void;
+  startNavigation: (nowMs: number) => void;
   stopNavigation: () => void;
   updatePosition: (position: LatLng, atMs: number) => void;
   checkGpsTimeout: (nowMs: number) => void;
@@ -106,7 +106,11 @@ export const useNavStore = create<NavStoreState>((set, get) => {
     }
   }
 
-  async function routeAndMaybeStart(destination: LatLng, autoStart: boolean): Promise<void> {
+  async function routeAndMaybeStart(
+    destination: LatLng,
+    autoStart: boolean,
+    nowMs?: number,
+  ): Promise<void> {
     const from = get().currentPosition;
     if (!from) {
       set({ status: 'error', errorMessage: 'Нет текущей позиции — включите GPS.' });
@@ -124,7 +128,7 @@ export const useNavStore = create<NavStoreState>((set, get) => {
     if (!route) return;
     set({ route, status: 'ready' });
     if (autoStart) {
-      get().startNavigation();
+      get().startNavigation(nowMs ?? Date.now());
     }
   }
 
@@ -190,12 +194,17 @@ export const useNavStore = create<NavStoreState>((set, get) => {
       await routeAndMaybeStart({ lat: candidate.lat, lon: candidate.lon }, false);
     },
 
-    startNavigation: () => {
+    startNavigation: (nowMs) => {
       if (!get().route) return;
       lastManeuverIndex = null;
       lastProgressSample = null;
       rerouteDetector.reset();
-      set({ status: 'navigating', gpsOk: true });
+      // lastFixAtMs сбрасывается на момент старта, а не оставляется от более
+      // раннего фикса: на реальном GPS время до первого точного фикса (TTFF)
+      // может занимать десятки секунд (особенно в помещении), и без сброса
+      // checkGpsTimeout сразу же находит «устаревший» фикс и показывает
+      // «Нет GPS», даже не дав GPS шанса обновиться после старта навигации.
+      set({ status: 'navigating', gpsOk: true, lastFixAtMs: nowMs });
       void glassesApi().showNavState(NavState.GUIDING);
     },
 
@@ -224,7 +233,7 @@ export const useNavStore = create<NavStoreState>((set, get) => {
         set({ status: 'rerouting' });
         void glassesApi().showNavState(NavState.REROUTING);
         if (destination) {
-          void routeAndMaybeStart(destination, true).then(() => {
+          void routeAndMaybeStart(destination, true, atMs).then(() => {
             if (get().status === 'rerouting') set({ status: 'navigating' });
           });
         }
