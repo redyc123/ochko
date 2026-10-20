@@ -11,31 +11,52 @@ function nominatimResult(lat: number, lon: number, name = 'Пятёрочка') 
   return { display_name: name, lat: String(lat), lon: String(lon), type: 'shop', importance: 0.5 };
 }
 
-function valhallaRouteFor(shape: LatLng[], maneuverTypes: number[]) {
-  const step = shape.length > 1 ? Math.floor((shape.length - 1) / maneuverTypes.length) || 1 : 0;
-  const maneuvers = maneuverTypes.map((type, i) => ({
-    type,
-    instruction: '',
-    street_names: [`ул. №${i}`],
-    length: 0.05,
-    time: 30,
-    begin_shape_index: i * step,
-    end_shape_index: i === maneuverTypes.length - 1 ? shape.length - 1 : (i + 1) * step,
-  }));
+interface OsrmManeuverSpec {
+  type: string;
+  modifier?: string;
+  exit?: number;
+}
+
+/**
+ * Строит сырой ответ OSRM /route/v1 из цельного shape и списка манёвров,
+ * разрезая shape на пересекающиеся по границе куски (ровно так, как это
+ * делают настоящие per-step geometry у OSRM) — чтобы де-дуп в
+ * parseOsrmResponse склеил их обратно в тот же shape, что мы передали сюда.
+ */
+function osrmRouteFor(shape: LatLng[], maneuvers: OsrmManeuverSpec[]) {
+  const n = maneuvers.length;
+  const step = shape.length > 1 ? Math.floor((shape.length - 1) / n) || 1 : 0;
+  const boundaries: number[] = [0];
+  for (let i = 1; i < n; i += 1) {
+    boundaries.push(i * step);
+  }
+  boundaries.push(shape.length - 1);
+
+  const steps = maneuvers.map((m, i) => {
+    const from = boundaries[i]!;
+    const to = boundaries[i + 1]!;
+    const slice = shape.length > 0 ? shape.slice(from, to + 1) : [];
+    return {
+      distance: 50,
+      duration: 30,
+      name: `ул. №${i}`,
+      geometry: encodePolyline6(slice.length > 0 ? slice : [shape[shape.length - 1]!]),
+      maneuver: { type: m.type, modifier: m.modifier, exit: m.exit },
+    };
+  });
+
   return {
-    trip: {
-      legs: [{ shape: encodePolyline6(shape), maneuvers }],
-      summary: { length: 0.1 * maneuverTypes.length, time: 60 * maneuverTypes.length },
-    },
+    code: 'Ok',
+    routes: [{ distance: 100 * n, duration: 60 * n, legs: [{ steps }] }],
   };
 }
 
-function mockFetch(handlers: { nominatim?: unknown; valhalla?: unknown }) {
+function mockFetch(handlers: { nominatim?: unknown; osrm?: unknown }) {
   return jest.fn(async (url: string) => {
-    if (url.includes('nominatim') || url.includes('/search?')) {
-      return { ok: true, status: 200, json: async () => handlers.nominatim ?? [] };
+    if (url.includes('/route/v1/')) {
+      return { ok: true, status: 200, json: async () => handlers.osrm };
     }
-    return { ok: true, status: 200, json: async () => handlers.valhalla };
+    return { ok: true, status: 200, json: async () => handlers.nominatim ?? [] };
   });
 }
 
@@ -65,7 +86,7 @@ describe('navigateTo: геокодинг', () => {
     const shape = [ORIGIN, { lat: 0, lon: 0.002 }];
     (globalThis as unknown as { fetch: jest.Mock }).fetch = mockFetch({
       nominatim: [nominatimResult(0, 0.002)],
-      valhalla: valhallaRouteFor(shape, [1, 4]),
+      osrm: osrmRouteFor(shape, [{ type: 'depart' }, { type: 'arrive' }]),
     });
 
     await useNavStore.getState().navigateTo('Пятёрочка на Ленина');
@@ -107,7 +128,7 @@ describe('navigateTo: геокодинг', () => {
     useNavStore.getState().updatePosition(ORIGIN, 0);
     const shape = [ORIGIN, { lat: 0, lon: 0.002 }];
     (globalThis as unknown as { fetch: jest.Mock }).fetch = mockFetch({
-      valhalla: valhallaRouteFor(shape, [1, 4]),
+      osrm: osrmRouteFor(shape, [{ type: 'depart' }, { type: 'arrive' }]),
     });
 
     await useNavStore
@@ -125,7 +146,7 @@ describe('startNavigation / stopNavigation', () => {
     const shape = [ORIGIN, { lat: 0, lon: 0.002 }];
     (globalThis as unknown as { fetch: jest.Mock }).fetch = mockFetch({
       nominatim: [nominatimResult(0, 0.002)],
-      valhalla: valhallaRouteFor(shape, [1, 4]),
+      osrm: osrmRouteFor(shape, [{ type: 'depart' }, { type: 'arrive' }]),
     });
     await useNavStore.getState().navigateTo('цель');
 
@@ -140,7 +161,7 @@ describe('startNavigation / stopNavigation', () => {
     const shape = [ORIGIN, { lat: 0, lon: 0.002 }];
     (globalThis as unknown as { fetch: jest.Mock }).fetch = mockFetch({
       nominatim: [nominatimResult(0, 0.002)],
-      valhalla: valhallaRouteFor(shape, [1, 4]),
+      osrm: osrmRouteFor(shape, [{ type: 'depart' }, { type: 'arrive' }]),
     });
     await useNavStore.getState().navigateTo('цель');
     useNavStore.getState().startNavigation();
@@ -163,7 +184,7 @@ describe('updatePosition: манёвры, прогресс, прибытие', (
     ];
     (globalThis as unknown as { fetch: jest.Mock }).fetch = mockFetch({
       nominatim: [nominatimResult(0, 0.002)],
-      valhalla: valhallaRouteFor(shape, [1, 10]), // CONTINUE, RIGHT
+      osrm: osrmRouteFor(shape, [{ type: 'depart' }, { type: 'turn', modifier: 'right' }]),
     });
     await useNavStore.getState().navigateTo('цель');
     useNavStore.getState().startNavigation();
@@ -174,8 +195,8 @@ describe('updatePosition: манёвры, прогресс, прибытие', (
     await setUpNavigating();
     useNavStore.getState().updatePosition({ lat: 0, lon: 0 }, 1000);
 
-    // На старте (сегмент манёвра 0 — CONTINUE) «upcoming» — это следующий
-    // манёвр (RIGHT): streetNames и иконка относятся к улице ПОСЛЕ поворота.
+    // На старте (сегмент манёвра 0 — depart) «upcoming» — это следующий
+    // манёвр (turn/right): streetNames и иконка относятся к улице ПОСЛЕ поворота.
     const maneuver = useDeviceStore.getState().emulator.getScreenState().nav.maneuver;
     expect(maneuver).not.toBeNull();
     expect(maneuver?.icon).toBe(ManeuverIcon.RIGHT);
@@ -208,12 +229,14 @@ describe('updatePosition: манёвры, прогресс, прибытие', (
     expect(useNavStore.getState().status).toBe('navigating');
 
     (globalThis as unknown as { fetch: jest.Mock }).fetch = mockFetch({
-      valhalla: valhallaRouteFor(originalShape, [1, 10]),
+      osrm: osrmRouteFor(originalShape, [{ type: 'depart' }, { type: 'turn', modifier: 'right' }]),
     });
     useNavStore.getState().updatePosition(farPoint, 10_001);
 
     expect(useNavStore.getState().status).toBe('rerouting');
-    await new Promise((resolve) => setTimeout(resolve, 20)); // дождаться асинхронного пересчёта маршрута
+    // OsrmRouter в сторе не получает фейковый sleep/now, поэтому честно ждёт
+    // свою паузу между запросами (minIntervalMs=1000 по умолчанию) — ждём с запасом.
+    await new Promise((resolve) => setTimeout(resolve, 1100));
     expect(useNavStore.getState().status).toBe('navigating');
   });
 });
@@ -224,7 +247,7 @@ describe('checkGpsTimeout', () => {
     const shape = [ORIGIN, { lat: 0, lon: 0.002 }];
     (globalThis as unknown as { fetch: jest.Mock }).fetch = mockFetch({
       nominatim: [nominatimResult(0, 0.002)],
-      valhalla: valhallaRouteFor(shape, [1, 4]),
+      osrm: osrmRouteFor(shape, [{ type: 'depart' }, { type: 'arrive' }]),
     });
     await useNavStore.getState().navigateTo('цель');
     useNavStore.getState().startNavigation();
@@ -246,7 +269,7 @@ describe('enableSimulation / tickSimulation', () => {
     ];
     (globalThis as unknown as { fetch: jest.Mock }).fetch = mockFetch({
       nominatim: [nominatimResult(0, 0.1)],
-      valhalla: valhallaRouteFor(shape, [1, 4]),
+      osrm: osrmRouteFor(shape, [{ type: 'depart' }, { type: 'arrive' }]),
     });
     await useNavStore.getState().navigateTo('далёкая цель');
     useNavStore.getState().startNavigation();

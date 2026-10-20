@@ -1,3 +1,4 @@
+import { mapOsrmManeuverToIcon, usesExitNumber } from './maneuverMap';
 import { decodePolyline6 } from './polyline';
 import type { LatLng, Route, RouteManeuver, RouteProfile } from './types';
 
@@ -17,90 +18,131 @@ export class RouteError extends Error {
 
 type FetchFn = (
   url: string,
-  init: { method: string; headers: Record<string, string>; body: string },
+  init?: { headers?: Record<string, string> },
 ) => Promise<{ ok: boolean; status: number; json: () => Promise<unknown> }>;
 
-export interface ValhallaRouterOptions {
-  /** Базовый URL — вынесен в настройки (ТЗ §1.3), напр. публичный демо-сервер. */
+export interface OsrmRouterOptions {
+  /** Базовый URL — вынесен в настройки (ТЗ §1.3). Публичный FOSSGIS-инстанс по умолчанию. */
   baseUrl?: string;
+  /** Осмысленный User-Agent — требуется правилами публичного routing.openstreetmap.de. */
+  userAgent?: string;
   fetchFn?: FetchFn;
   maxRetries?: number;
   /** Базовая задержка экспоненциального повтора, мс. */
   retryBaseDelayMs?: number;
   sleep?: (ms: number) => Promise<void>;
+  /** Пауза между запросами, мс — политика сервиса требует не больше 1 req/s. */
+  minIntervalMs?: number;
+  now?: () => number;
 }
 
-function profileToCosting(profile: RouteProfile): string {
+type OsrmProfile = 'foot' | 'bike' | 'car';
+
+function profileToOsrm(profile: RouteProfile): OsrmProfile {
   switch (profile) {
     case 'pedestrian':
-      return 'pedestrian';
+      return 'foot';
     case 'bicycle':
-      return 'bicycle';
+      return 'bike';
     case 'auto':
-      return 'auto';
+      return 'car';
   }
 }
 
-export function buildValhallaRequestBody(from: LatLng, to: LatLng, profile: RouteProfile): object {
+/**
+ * URL для OSRM /route/v1 (routing.openstreetmap.de хостит car/bike/foot как
+ * отдельные `/routed-{profile}/` сервисы). Координаты в пути — ВНИМАНИЕ,
+ * порядок `lon,lat`, не `lat,lon` (классическая ловушка OSRM).
+ */
+export function buildOsrmUrl(
+  baseUrl: string,
+  from: LatLng,
+  to: LatLng,
+  profile: RouteProfile,
+): string {
+  const osrmProfile = profileToOsrm(profile);
+  const coords = `${from.lon},${from.lat};${to.lon},${to.lat}`;
+  const params = new URLSearchParams({ steps: 'true', geometries: 'polyline6', overview: 'false' });
+  return `${baseUrl}/routed-${osrmProfile}/route/v1/${osrmProfile}/${coords}?${params.toString()}`;
+}
+
+interface OsrmManeuverRaw {
+  type: string;
+  modifier?: string;
+  exit?: number;
+}
+
+interface OsrmStepRaw {
+  distance: number;
+  duration: number;
+  name: string;
+  geometry: string;
+  maneuver: OsrmManeuverRaw;
+}
+
+interface OsrmLegRaw {
+  steps: OsrmStepRaw[];
+}
+
+interface OsrmRouteRaw {
+  distance: number;
+  duration: number;
+  legs: OsrmLegRaw[];
+}
+
+interface OsrmResponseRaw {
+  code: string;
+  message?: string;
+  routes?: OsrmRouteRaw[];
+}
+
+/**
+ * Склеивает shape маршрута из geometry отдельных шагов (а не из общего
+ * `route.geometry`) — так begin/endShapeIndex каждого манёвра вычисляются по
+ * построению, без согласования с чужой индексацией. Общая точка на стыке
+ * двух шагов (конец предыдущего == начало следующего — так всегда у OSRM)
+ * де-дуплицируется, чтобы endShapeIndex_i === beginShapeIndex_{i+1}, как и
+ * ожидает tracking.ts.
+ */
+export function parseOsrmResponse(data: OsrmResponseRaw, profile: RouteProfile): Route {
+  if (data.code !== 'Ok') {
+    throw new RouteError(data.message ?? data.code);
+  }
+  const route = data.routes?.[0];
+  const leg = route?.legs[0];
+  if (!route || !leg) {
+    throw new RouteError('OSRM вернул маршрут без ни одного leg');
+  }
+
+  const shape: LatLng[] = [];
+  const maneuvers: RouteManeuver[] = [];
+
+  for (const step of leg.steps) {
+    const points = decodePolyline6(step.geometry);
+    const beginShapeIndex = shape.length === 0 ? 0 : shape.length - 1;
+    const pointsToAppend = shape.length === 0 ? points : points.slice(1);
+    shape.push(...pointsToAppend);
+    const endShapeIndex = shape.length === 0 ? 0 : shape.length - 1;
+
+    const maneuver: RouteManeuver = {
+      type: mapOsrmManeuverToIcon(step.maneuver.type, step.maneuver.modifier),
+      streetNames: step.name ? [step.name] : [],
+      distanceMeters: step.distance,
+      durationSeconds: step.duration,
+      beginShapeIndex,
+      endShapeIndex,
+    };
+    if (usesExitNumber(step.maneuver.type) && step.maneuver.exit !== undefined) {
+      maneuver.roundaboutExitCount = step.maneuver.exit;
+    }
+    maneuvers.push(maneuver);
+  }
+
   return {
-    locations: [
-      { lat: from.lat, lon: from.lon },
-      { lat: to.lat, lon: to.lon },
-    ],
-    costing: profileToCosting(profile),
-    directions_options: { language: 'ru-RU', units: 'kilometers' },
-  };
-}
-
-interface ValhallaManeuverRaw {
-  type: number;
-  instruction?: string;
-  street_names?: string[];
-  length: number; // в единицах directions_options.units — у нас всегда km
-  time: number;
-  begin_shape_index: number;
-  end_shape_index: number;
-  roundabout_exit_count?: number;
-}
-
-interface ValhallaLegRaw {
-  shape: string;
-  maneuvers: ValhallaManeuverRaw[];
-}
-
-interface ValhallaResponseRaw {
-  trip: {
-    legs: ValhallaLegRaw[];
-    summary: { length: number; time: number };
-  };
-}
-
-function parseManeuver(raw: ValhallaManeuverRaw): RouteManeuver {
-  const maneuver: RouteManeuver = {
-    type: raw.type,
-    instruction: raw.instruction ?? '',
-    streetNames: raw.street_names ?? [],
-    distanceMeters: raw.length * 1000,
-    durationSeconds: raw.time,
-    beginShapeIndex: raw.begin_shape_index,
-    endShapeIndex: raw.end_shape_index,
-  };
-  if (raw.roundabout_exit_count !== undefined) {
-    maneuver.roundaboutExitCount = raw.roundabout_exit_count;
-  }
-  return maneuver;
-}
-
-export function parseValhallaResponse(data: ValhallaResponseRaw, profile: RouteProfile): Route {
-  const leg = data.trip.legs[0];
-  if (!leg) {
-    throw new RouteError('Valhalla вернула маршрут без ни одного leg');
-  }
-  return {
-    shape: decodePolyline6(leg.shape),
-    maneuvers: leg.maneuvers.map(parseManeuver),
-    distanceMeters: data.trip.summary.length * 1000,
-    durationSeconds: data.trip.summary.time,
+    shape,
+    maneuvers,
+    distanceMeters: route.distance,
+    durationSeconds: route.duration,
     profile,
   };
 }
@@ -110,48 +152,60 @@ async function delay(ms: number): Promise<void> {
 }
 
 /**
- * Router поверх Valhalla /route (ТЗ §1.3). Сетевые ошибки и временные отказы
- * (429/5xx) повторяются с экспоненциальной задержкой; после исчерпания
- * попыток бросает RouteError с понятным сообщением для показа на очках
- * («Нет сети»/«Ошибка маршрута» решает вызывающая сторона по NAV_STATE).
+ * Router поверх OSRM /route (routing.openstreetmap.de, публичный FOSSGIS-
+ * инстанс — см. docs/LIMITATIONS.md). Каждый fetch-запрос (включая повторы)
+ * разнесён минимум на minIntervalMs — политика сервиса требует не больше
+ * 1 запроса в секунду, и это должно соблюдаться даже во время ретраев, а не
+ * только между вызовами route(). Сетевые ошибки и временные отказы (429/5xx)
+ * повторяются с экспоненциальной задержкой; после исчерпания попыток бросает
+ * RouteError с понятным сообщением («Нет сети»/«Ошибка маршрута» решает
+ * вызывающая сторона по NAV_STATE).
  */
-export class ValhallaRouter implements Router {
+export class OsrmRouter implements Router {
   private readonly baseUrl: string;
+  private readonly userAgent: string | undefined;
   private readonly fetchFn: FetchFn | undefined;
   private readonly maxRetries: number;
   private readonly retryBaseDelayMs: number;
   private readonly sleep: (ms: number) => Promise<void>;
+  private readonly minIntervalMs: number;
+  private readonly now: () => number;
 
-  constructor(options: ValhallaRouterOptions = {}) {
-    this.baseUrl = options.baseUrl ?? 'https://valhalla1.openstreetmap.de';
+  private lastRequestAtMs: number | null = null;
+
+  constructor(options: OsrmRouterOptions = {}) {
+    this.baseUrl = options.baseUrl ?? 'https://routing.openstreetmap.de';
+    this.userAgent = options.userAgent;
     // См. geocode.ts: fetchFn подхватывается лениво в route(), а не тут.
     this.fetchFn = options.fetchFn;
     this.maxRetries = options.maxRetries ?? 3;
     this.retryBaseDelayMs = options.retryBaseDelayMs ?? 500;
     this.sleep = options.sleep ?? delay;
+    this.minIntervalMs = options.minIntervalMs ?? 1000;
+    this.now = options.now ?? Date.now;
   }
 
   async route(from: LatLng, to: LatLng, profile: RouteProfile): Promise<Route> {
-    const body = buildValhallaRequestBody(from, to, profile);
+    const url = buildOsrmUrl(this.baseUrl, from, to, profile);
     let lastError: unknown;
 
     for (let attempt = 0; attempt <= this.maxRetries; attempt += 1) {
       try {
+        await this.pace();
         const fetchFn = this.fetchFn ?? (globalThis.fetch as FetchFn);
-        const response = await fetchFn(`${this.baseUrl}/route`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        });
+        const response = await fetchFn(
+          url,
+          this.userAgent ? { headers: { 'User-Agent': this.userAgent } } : undefined,
+        );
         if (!response.ok) {
           if (this.isRetryable(response.status) && attempt < this.maxRetries) {
             await this.sleep(this.retryBaseDelayMs * 2 ** attempt);
             continue;
           }
-          throw new RouteError(`Valhalla ответила ${response.status}`);
+          throw new RouteError(`OSRM ответил ${response.status}`);
         }
-        const data = (await response.json()) as ValhallaResponseRaw;
-        return parseValhallaResponse(data, profile);
+        const data = (await response.json()) as OsrmResponseRaw;
+        return parseOsrmResponse(data, profile);
       } catch (err) {
         lastError = err;
         if (err instanceof RouteError) {
@@ -164,6 +218,17 @@ export class ValhallaRouter implements Router {
       }
     }
     throw new RouteError('Не удалось построить маршрут: нет сети', lastError);
+  }
+
+  /** Не даёт двум запросам (включая повторы) идти чаще, чем раз в minIntervalMs. */
+  private async pace(): Promise<void> {
+    if (this.lastRequestAtMs !== null) {
+      const elapsed = this.now() - this.lastRequestAtMs;
+      if (elapsed < this.minIntervalMs) {
+        await this.sleep(this.minIntervalMs - elapsed);
+      }
+    }
+    this.lastRequestAtMs = this.now();
   }
 
   private isRetryable(status: number): boolean {

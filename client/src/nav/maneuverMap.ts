@@ -1,47 +1,39 @@
 /**
- * Коды типов манёвров Valhalla (поле `type` в `trip.legs[].maneuvers[]`).
- * Сверено с документацией:
- * https://github.com/valhalla/valhalla-docs/blob/master/turn-by-turn/api-reference.md
- * (раздел Maneuver Type), значения 0..36, не по памяти.
+ * Коды типов (`type`) и модификаторов (`modifier`) манёвров OSRM
+ * (`routes[].legs[].steps[].maneuver`). Сверено с официальной документацией:
+ * https://project-osrm.org/docs/v5.24.0/api/#step-maneuver-object — полный
+ * перечень значений обоих полей, не по памяти.
  */
-export const ValhallaManeuverType = {
-  NONE: 0,
-  START: 1,
-  START_RIGHT: 2,
-  START_LEFT: 3,
-  DESTINATION: 4,
-  DESTINATION_RIGHT: 5,
-  DESTINATION_LEFT: 6,
-  BECOMES: 7,
-  CONTINUE: 8,
-  SLIGHT_RIGHT: 9,
-  RIGHT: 10,
-  SHARP_RIGHT: 11,
-  UTURN_RIGHT: 12,
-  UTURN_LEFT: 13,
-  SHARP_LEFT: 14,
-  LEFT: 15,
-  SLIGHT_LEFT: 16,
-  RAMP_STRAIGHT: 17,
-  RAMP_RIGHT: 18,
-  RAMP_LEFT: 19,
-  EXIT_RIGHT: 20,
-  EXIT_LEFT: 21,
-  STAY_STRAIGHT: 22,
-  STAY_RIGHT: 23,
-  STAY_LEFT: 24,
-  MERGE: 25,
-  ROUNDABOUT_ENTER: 26,
-  ROUNDABOUT_EXIT: 27,
-  FERRY_ENTER: 28,
-  FERRY_EXIT: 29,
-  TRANSIT: 30,
-  TRANSIT_TRANSFER: 31,
-  TRANSIT_REMAIN_ON: 32,
-  TRANSIT_CONNECTION_START: 33,
-  TRANSIT_CONNECTION_TRANSFER: 34,
-  TRANSIT_CONNECTION_DESTINATION: 35,
-  POST_TRANSIT_CONNECTION_DESTINATION: 36,
+export const OsrmManeuverType = {
+  TURN: 'turn',
+  NEW_NAME: 'new name',
+  DEPART: 'depart',
+  ARRIVE: 'arrive',
+  MERGE: 'merge',
+  RAMP: 'ramp',
+  ON_RAMP: 'on ramp',
+  OFF_RAMP: 'off ramp',
+  FORK: 'fork',
+  END_OF_ROAD: 'end of road',
+  USE_LANE: 'use lane',
+  CONTINUE: 'continue',
+  ROUNDABOUT: 'roundabout',
+  ROTARY: 'rotary',
+  ROUNDABOUT_TURN: 'roundabout turn',
+  NOTIFICATION: 'notification',
+  EXIT_ROUNDABOUT: 'exit roundabout',
+  EXIT_ROTARY: 'exit rotary',
+} as const;
+
+export const OsrmManeuverModifier = {
+  UTURN: 'uturn',
+  SHARP_RIGHT: 'sharp right',
+  RIGHT: 'right',
+  SLIGHT_RIGHT: 'slight right',
+  STRAIGHT: 'straight',
+  SLIGHT_LEFT: 'slight left',
+  LEFT: 'left',
+  SHARP_LEFT: 'sharp left',
 } as const;
 
 /**
@@ -66,56 +58,72 @@ export const ManeuverIcon = {
   FERRY_OR_TRANSIT: 15,
 } as const;
 
-/**
- * Таблица Valhalla type -> наша иконка. Неизвестные/будущие типы Valhalla
- * падают в ManeuverIcon.NONE — вызывающая сторона должна в этом случае
- * положить текст инструкции в поле street (ТЗ §4.4).
- */
-const VALHALLA_TO_ICON: Readonly<Record<number, number>> = {
-  [ValhallaManeuverType.NONE]: ManeuverIcon.NONE,
-  [ValhallaManeuverType.START]: ManeuverIcon.START,
-  [ValhallaManeuverType.START_RIGHT]: ManeuverIcon.START,
-  [ValhallaManeuverType.START_LEFT]: ManeuverIcon.START,
-  [ValhallaManeuverType.DESTINATION]: ManeuverIcon.ARRIVE,
-  [ValhallaManeuverType.DESTINATION_RIGHT]: ManeuverIcon.ARRIVE,
-  [ValhallaManeuverType.DESTINATION_LEFT]: ManeuverIcon.ARRIVE,
-  [ValhallaManeuverType.BECOMES]: ManeuverIcon.STRAIGHT,
-  [ValhallaManeuverType.CONTINUE]: ManeuverIcon.STRAIGHT,
-  [ValhallaManeuverType.SLIGHT_RIGHT]: ManeuverIcon.SLIGHT_RIGHT,
-  [ValhallaManeuverType.RIGHT]: ManeuverIcon.RIGHT,
-  [ValhallaManeuverType.SHARP_RIGHT]: ManeuverIcon.SHARP_RIGHT,
-  [ValhallaManeuverType.UTURN_RIGHT]: ManeuverIcon.UTURN,
-  [ValhallaManeuverType.UTURN_LEFT]: ManeuverIcon.UTURN,
-  [ValhallaManeuverType.SHARP_LEFT]: ManeuverIcon.SHARP_LEFT,
-  [ValhallaManeuverType.LEFT]: ManeuverIcon.LEFT,
-  [ValhallaManeuverType.SLIGHT_LEFT]: ManeuverIcon.SLIGHT_LEFT,
-  [ValhallaManeuverType.RAMP_STRAIGHT]: ManeuverIcon.STRAIGHT,
-  [ValhallaManeuverType.RAMP_RIGHT]: ManeuverIcon.SLIGHT_RIGHT,
-  [ValhallaManeuverType.RAMP_LEFT]: ManeuverIcon.SLIGHT_LEFT,
-  [ValhallaManeuverType.EXIT_RIGHT]: ManeuverIcon.RIGHT,
-  [ValhallaManeuverType.EXIT_LEFT]: ManeuverIcon.LEFT,
-  [ValhallaManeuverType.STAY_STRAIGHT]: ManeuverIcon.STRAIGHT,
-  [ValhallaManeuverType.STAY_RIGHT]: ManeuverIcon.KEEP_RIGHT,
-  [ValhallaManeuverType.STAY_LEFT]: ManeuverIcon.KEEP_LEFT,
-  [ValhallaManeuverType.MERGE]: ManeuverIcon.STRAIGHT,
-  [ValhallaManeuverType.ROUNDABOUT_ENTER]: ManeuverIcon.ROUNDABOUT,
-  [ValhallaManeuverType.ROUNDABOUT_EXIT]: ManeuverIcon.STRAIGHT,
-  [ValhallaManeuverType.FERRY_ENTER]: ManeuverIcon.FERRY_OR_TRANSIT,
-  [ValhallaManeuverType.FERRY_EXIT]: ManeuverIcon.FERRY_OR_TRANSIT,
-  [ValhallaManeuverType.TRANSIT]: ManeuverIcon.FERRY_OR_TRANSIT,
-  [ValhallaManeuverType.TRANSIT_TRANSFER]: ManeuverIcon.FERRY_OR_TRANSIT,
-  [ValhallaManeuverType.TRANSIT_REMAIN_ON]: ManeuverIcon.FERRY_OR_TRANSIT,
-  [ValhallaManeuverType.TRANSIT_CONNECTION_START]: ManeuverIcon.FERRY_OR_TRANSIT,
-  [ValhallaManeuverType.TRANSIT_CONNECTION_TRANSFER]: ManeuverIcon.FERRY_OR_TRANSIT,
-  [ValhallaManeuverType.TRANSIT_CONNECTION_DESTINATION]: ManeuverIcon.FERRY_OR_TRANSIT,
-  [ValhallaManeuverType.POST_TRANSIT_CONNECTION_DESTINATION]: ManeuverIcon.ARRIVE,
+/** Манёвры, у которых есть осмысленный поворот — иконка берётся из modifier. */
+const MODIFIER_TO_ICON: Readonly<Record<string, number>> = {
+  [OsrmManeuverModifier.UTURN]: ManeuverIcon.UTURN,
+  [OsrmManeuverModifier.SHARP_RIGHT]: ManeuverIcon.SHARP_RIGHT,
+  [OsrmManeuverModifier.RIGHT]: ManeuverIcon.RIGHT,
+  [OsrmManeuverModifier.SLIGHT_RIGHT]: ManeuverIcon.SLIGHT_RIGHT,
+  [OsrmManeuverModifier.STRAIGHT]: ManeuverIcon.STRAIGHT,
+  [OsrmManeuverModifier.SLIGHT_LEFT]: ManeuverIcon.SLIGHT_LEFT,
+  [OsrmManeuverModifier.LEFT]: ManeuverIcon.LEFT,
+  [OsrmManeuverModifier.SHARP_LEFT]: ManeuverIcon.SHARP_LEFT,
 };
 
-/** true для типов, после которых известен номер съезда (roundabout exit count). */
-export function usesExitNumber(valhallaType: number): boolean {
-  return valhallaType === ValhallaManeuverType.ROUNDABOUT_ENTER;
+/** Манёвры, у которых иконка жёстко зависит от типа и modifier не несёт турн-семантики. */
+const FIXED_TYPE_TO_ICON: Readonly<Record<string, number>> = {
+  [OsrmManeuverType.DEPART]: ManeuverIcon.START,
+  [OsrmManeuverType.ARRIVE]: ManeuverIcon.ARRIVE,
+  [OsrmManeuverType.ROUNDABOUT]: ManeuverIcon.ROUNDABOUT,
+  [OsrmManeuverType.ROTARY]: ManeuverIcon.ROUNDABOUT,
+  [OsrmManeuverType.ROUNDABOUT_TURN]: ManeuverIcon.ROUNDABOUT,
+  [OsrmManeuverType.EXIT_ROUNDABOUT]: ManeuverIcon.STRAIGHT,
+  [OsrmManeuverType.EXIT_ROTARY]: ManeuverIcon.STRAIGHT,
+};
+
+const RIGHT_MODIFIERS: ReadonlySet<string> = new Set([
+  OsrmManeuverModifier.SHARP_RIGHT,
+  OsrmManeuverModifier.RIGHT,
+  OsrmManeuverModifier.SLIGHT_RIGHT,
+]);
+const LEFT_MODIFIERS: ReadonlySet<string> = new Set([
+  OsrmManeuverModifier.SHARP_LEFT,
+  OsrmManeuverModifier.LEFT,
+  OsrmManeuverModifier.SLIGHT_LEFT,
+]);
+
+/** true для типов, у которых есть номер съезда (`maneuver.exit`) — вход в кольцо. */
+export function usesExitNumber(type: string): boolean {
+  return (
+    type === OsrmManeuverType.ROUNDABOUT ||
+    type === OsrmManeuverType.ROTARY ||
+    type === OsrmManeuverType.ROUNDABOUT_TURN
+  );
 }
 
-export function mapValhallaManeuverToIcon(valhallaType: number): number {
-  return VALHALLA_TO_ICON[valhallaType] ?? ManeuverIcon.NONE;
+export function mapOsrmManeuverToIcon(type: string, modifier?: string): number {
+  if (type === OsrmManeuverType.FORK) {
+    if (modifier && RIGHT_MODIFIERS.has(modifier)) return ManeuverIcon.KEEP_RIGHT;
+    if (modifier && LEFT_MODIFIERS.has(modifier)) return ManeuverIcon.KEEP_LEFT;
+    return ManeuverIcon.STRAIGHT;
+  }
+
+  const fixed = FIXED_TYPE_TO_ICON[type];
+  if (fixed !== undefined) {
+    return fixed;
+  }
+
+  // turn/new name/merge/ramp/on ramp/off ramp/end of road/use lane/continue/notification —
+  // у всех этих типов поворот (если есть) описан в modifier; незнакомый тип падает в NONE.
+  if (
+    !Object.values(OsrmManeuverType).includes(
+      type as (typeof OsrmManeuverType)[keyof typeof OsrmManeuverType],
+    )
+  ) {
+    return ManeuverIcon.NONE;
+  }
+  if (!modifier) {
+    return ManeuverIcon.STRAIGHT;
+  }
+  return MODIFIER_TO_ICON[modifier] ?? ManeuverIcon.STRAIGHT;
 }

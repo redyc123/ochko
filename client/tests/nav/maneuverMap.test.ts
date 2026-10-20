@@ -1,75 +1,74 @@
-import {
-  ManeuverIcon,
-  ValhallaManeuverType,
-  mapValhallaManeuverToIcon,
-  usesExitNumber,
-} from '@/nav/maneuverMap';
+import { ManeuverIcon, mapOsrmManeuverToIcon, usesExitNumber } from '@/nav/maneuverMap';
 
-describe('mapValhallaManeuverToIcon', () => {
-  it('базовые повороты', () => {
-    expect(mapValhallaManeuverToIcon(ValhallaManeuverType.CONTINUE)).toBe(ManeuverIcon.STRAIGHT);
-    expect(mapValhallaManeuverToIcon(ValhallaManeuverType.RIGHT)).toBe(ManeuverIcon.RIGHT);
-    expect(mapValhallaManeuverToIcon(ValhallaManeuverType.LEFT)).toBe(ManeuverIcon.LEFT);
-    expect(mapValhallaManeuverToIcon(ValhallaManeuverType.SLIGHT_RIGHT)).toBe(
-      ManeuverIcon.SLIGHT_RIGHT,
-    );
-    expect(mapValhallaManeuverToIcon(ValhallaManeuverType.SLIGHT_LEFT)).toBe(
-      ManeuverIcon.SLIGHT_LEFT,
-    );
-    expect(mapValhallaManeuverToIcon(ValhallaManeuverType.SHARP_RIGHT)).toBe(
-      ManeuverIcon.SHARP_RIGHT,
-    );
-    expect(mapValhallaManeuverToIcon(ValhallaManeuverType.SHARP_LEFT)).toBe(
-      ManeuverIcon.SHARP_LEFT,
-    );
+describe('mapOsrmManeuverToIcon', () => {
+  it('базовые повороты (type=turn + modifier)', () => {
+    expect(mapOsrmManeuverToIcon('turn', 'straight')).toBe(ManeuverIcon.STRAIGHT);
+    expect(mapOsrmManeuverToIcon('turn', 'right')).toBe(ManeuverIcon.RIGHT);
+    expect(mapOsrmManeuverToIcon('turn', 'left')).toBe(ManeuverIcon.LEFT);
+    expect(mapOsrmManeuverToIcon('turn', 'slight right')).toBe(ManeuverIcon.SLIGHT_RIGHT);
+    expect(mapOsrmManeuverToIcon('turn', 'slight left')).toBe(ManeuverIcon.SLIGHT_LEFT);
+    expect(mapOsrmManeuverToIcon('turn', 'sharp right')).toBe(ManeuverIcon.SHARP_RIGHT);
+    expect(mapOsrmManeuverToIcon('turn', 'sharp left')).toBe(ManeuverIcon.SHARP_LEFT);
   });
 
-  it('разворот — и левый, и правый вариант дают одну иконку', () => {
-    expect(mapValhallaManeuverToIcon(ValhallaManeuverType.UTURN_RIGHT)).toBe(ManeuverIcon.UTURN);
-    expect(mapValhallaManeuverToIcon(ValhallaManeuverType.UTURN_LEFT)).toBe(ManeuverIcon.UTURN);
+  it('разворот — одна иконка', () => {
+    expect(mapOsrmManeuverToIcon('turn', 'uturn')).toBe(ManeuverIcon.UTURN);
+    expect(mapOsrmManeuverToIcon('end of road', 'uturn')).toBe(ManeuverIcon.UTURN);
   });
 
-  it('старт и прибытие', () => {
-    expect(mapValhallaManeuverToIcon(ValhallaManeuverType.START)).toBe(ManeuverIcon.START);
-    expect(mapValhallaManeuverToIcon(ValhallaManeuverType.START_LEFT)).toBe(ManeuverIcon.START);
-    expect(mapValhallaManeuverToIcon(ValhallaManeuverType.DESTINATION)).toBe(ManeuverIcon.ARRIVE);
-    expect(mapValhallaManeuverToIcon(ValhallaManeuverType.DESTINATION_RIGHT)).toBe(
-      ManeuverIcon.ARRIVE,
-    );
+  it('старт и прибытие — не зависят от modifier', () => {
+    expect(mapOsrmManeuverToIcon('depart')).toBe(ManeuverIcon.START);
+    expect(mapOsrmManeuverToIcon('depart', 'left')).toBe(ManeuverIcon.START);
+    expect(mapOsrmManeuverToIcon('arrive')).toBe(ManeuverIcon.ARRIVE);
+    expect(mapOsrmManeuverToIcon('arrive', 'right')).toBe(ManeuverIcon.ARRIVE);
   });
 
-  it('кольцо: вход даёт иконку кольца, выход — «прямо»', () => {
-    expect(mapValhallaManeuverToIcon(ValhallaManeuverType.ROUNDABOUT_ENTER)).toBe(
-      ManeuverIcon.ROUNDABOUT,
-    );
-    expect(mapValhallaManeuverToIcon(ValhallaManeuverType.ROUNDABOUT_EXIT)).toBe(
-      ManeuverIcon.STRAIGHT,
-    );
+  it('кольцо: вход (roundabout/rotary/roundabout turn) даёт иконку кольца, выход — «прямо»', () => {
+    expect(mapOsrmManeuverToIcon('roundabout')).toBe(ManeuverIcon.ROUNDABOUT);
+    expect(mapOsrmManeuverToIcon('rotary')).toBe(ManeuverIcon.ROUNDABOUT);
+    expect(mapOsrmManeuverToIcon('roundabout turn')).toBe(ManeuverIcon.ROUNDABOUT);
+    expect(mapOsrmManeuverToIcon('exit roundabout')).toBe(ManeuverIcon.STRAIGHT);
+    expect(mapOsrmManeuverToIcon('exit rotary')).toBe(ManeuverIcon.STRAIGHT);
   });
 
-  it('держаться правее/левее на развилке', () => {
-    expect(mapValhallaManeuverToIcon(ValhallaManeuverType.STAY_RIGHT)).toBe(
-      ManeuverIcon.KEEP_RIGHT,
-    );
-    expect(mapValhallaManeuverToIcon(ValhallaManeuverType.STAY_LEFT)).toBe(ManeuverIcon.KEEP_LEFT);
+  it('развилка (fork) — держаться правее/левее по modifier, а не обычный поворот', () => {
+    expect(mapOsrmManeuverToIcon('fork', 'slight right')).toBe(ManeuverIcon.KEEP_RIGHT);
+    expect(mapOsrmManeuverToIcon('fork', 'right')).toBe(ManeuverIcon.KEEP_RIGHT);
+    expect(mapOsrmManeuverToIcon('fork', 'slight left')).toBe(ManeuverIcon.KEEP_LEFT);
+    expect(mapOsrmManeuverToIcon('fork', 'left')).toBe(ManeuverIcon.KEEP_LEFT);
+    expect(mapOsrmManeuverToIcon('fork')).toBe(ManeuverIcon.STRAIGHT);
   });
 
-  it('паром и общественный транспорт', () => {
-    expect(mapValhallaManeuverToIcon(ValhallaManeuverType.FERRY_ENTER)).toBe(
-      ManeuverIcon.FERRY_OR_TRANSIT,
-    );
-    expect(mapValhallaManeuverToIcon(ValhallaManeuverType.TRANSIT)).toBe(
-      ManeuverIcon.FERRY_OR_TRANSIT,
-    );
+  it('new name/continue/use lane без modifier — «прямо», но с modifier — настоящий поворот', () => {
+    expect(mapOsrmManeuverToIcon('new name')).toBe(ManeuverIcon.STRAIGHT);
+    expect(mapOsrmManeuverToIcon('continue')).toBe(ManeuverIcon.STRAIGHT);
+    expect(mapOsrmManeuverToIcon('use lane')).toBe(ManeuverIcon.STRAIGHT);
+    expect(mapOsrmManeuverToIcon('new name', 'left')).toBe(ManeuverIcon.LEFT);
+    expect(mapOsrmManeuverToIcon('use lane', 'slight right')).toBe(ManeuverIcon.SLIGHT_RIGHT);
   });
 
-  it('неизвестный/будущий тип Valhalla падает в NONE', () => {
-    expect(mapValhallaManeuverToIcon(999)).toBe(ManeuverIcon.NONE);
+  it('merge/ramp/on ramp/off ramp/end of road/notification — через modifier', () => {
+    expect(mapOsrmManeuverToIcon('merge', 'right')).toBe(ManeuverIcon.RIGHT);
+    expect(mapOsrmManeuverToIcon('ramp', 'left')).toBe(ManeuverIcon.LEFT);
+    expect(mapOsrmManeuverToIcon('on ramp', 'slight right')).toBe(ManeuverIcon.SLIGHT_RIGHT);
+    expect(mapOsrmManeuverToIcon('off ramp', 'slight left')).toBe(ManeuverIcon.SLIGHT_LEFT);
+    expect(mapOsrmManeuverToIcon('end of road', 'right')).toBe(ManeuverIcon.RIGHT);
+    expect(mapOsrmManeuverToIcon('notification')).toBe(ManeuverIcon.STRAIGHT);
   });
 
-  it('usesExitNumber — только вход в кольцо', () => {
-    expect(usesExitNumber(ValhallaManeuverType.ROUNDABOUT_ENTER)).toBe(true);
-    expect(usesExitNumber(ValhallaManeuverType.ROUNDABOUT_EXIT)).toBe(false);
-    expect(usesExitNumber(ValhallaManeuverType.RIGHT)).toBe(false);
+  it('неизвестный/будущий тип OSRM падает в NONE', () => {
+    expect(mapOsrmManeuverToIcon('teleport')).toBe(ManeuverIcon.NONE);
+  });
+
+  it('неизвестный modifier у известного типа падает в STRAIGHT, не в NONE', () => {
+    expect(mapOsrmManeuverToIcon('turn', 'warp speed')).toBe(ManeuverIcon.STRAIGHT);
+  });
+
+  it('usesExitNumber — только вход в кольцо (roundabout/rotary/roundabout turn)', () => {
+    expect(usesExitNumber('roundabout')).toBe(true);
+    expect(usesExitNumber('rotary')).toBe(true);
+    expect(usesExitNumber('roundabout turn')).toBe(true);
+    expect(usesExitNumber('exit roundabout')).toBe(false);
+    expect(usesExitNumber('turn')).toBe(false);
   });
 });

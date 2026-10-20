@@ -1,11 +1,13 @@
 import type { LatLng } from './types';
 
 /**
- * Декодер/кодер encoded polyline с точностью 1e6 ("polyline6"), которым
- * Valhalla кодирует shape маршрута. Алгоритм — как в официальной документации
- * Valhalla: https://valhalla.github.io/valhalla/api/decoding/ (это тот же
- * алгоритм, что у Google Encoded Polyline, но с 6 знаками после запятой
- * вместо 5 — координаты умножаются/делятся на 1e6, а не на 1e5).
+ * Декодер/кодер encoded polyline с точностью 1e6 ("polyline6") — так наш
+ * роутер (сейчас — OSRM, см. src/nav/router.ts) просит кодировать geometry
+ * шагов маршрута (`geometries=polyline6`). Алгоритм — как в официальной
+ * документации Valhalla: https://valhalla.github.io/valhalla/api/decoding/
+ * (это тот же алгоритм, что у Google Encoded Polyline и у OSRM, но с 6
+ * знаками после запятой вместо 5 — координаты умножаются/делятся на 1e6,
+ * а не на 1e5).
  */
 const POLYLINE6_FACTOR = 1e6;
 

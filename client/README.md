@@ -80,8 +80,8 @@ npm run test:coverage
 | Сервис | Где | По умолчанию |
 |---|---|---|
 | Nominatim (геокодинг) | `src/store/navStore.ts` → `NavSettings.nominatimBaseUrl`, меняется через `useNavStore().setSettings()` | `https://nominatim.openstreetmap.org` |
-| Valhalla (маршрутизация) | `NavSettings.valhallaBaseUrl` | `https://valhalla1.openstreetmap.de` |
-| User-Agent для Nominatim | `src/store/navStore.ts` → `NOMINATIM_USER_AGENT` | заглушка — **замените на свой контакт** перед реальным использованием (правила публичного Nominatim это требуют) |
+| OSRM (маршрутизация) | `NavSettings.osrmBaseUrl` | `https://routing.openstreetmap.de` |
+| User-Agent для Nominatim/OSRM | `src/store/navStore.ts` → `APP_USER_AGENT` | заглушка — **замените на свой контакт** перед реальным использованием (правила обоих публичных сервисов это требуют) |
 
 Ключей LLM/STT/голосового отпечатка в этой версии ещё нет — появятся в этапах
 3–5 и будут храниться в `react-native-keychain` (не в коде, не в AsyncStorage),
@@ -112,7 +112,7 @@ src/
     protocol/             // кодеры/декодеры пакетов — чистые функции, 100% тестов
   glasses/api.ts          // высокоуровневый API: showManeuver(), showText(), onButton()...
   emulator/               // виртуальные очки 72×40: декодер + экран + кнопка D1
-  nav/                    // geo, geocode (Nominatim), router (Valhalla), tracking, simulate
+  nav/                    // geo, geocode (Nominatim), router (OSRM), tracking, simulate
   store/                  // zustand: deviceStore (BLE/эмулятор), navStore (навигация)
   screens/                // DeviceScreen, NavigationScreen, RootNavigator
 tests/                    // зеркалит структуру src/, импорты — через алиас @/
@@ -156,13 +156,28 @@ docs/
   «1,2 км» (`formatDistanceRu`) — только для интерфейса приложения.
   Отображает ли прошивка числа ≥ 1000 м как километры — решение прошивки,
   не часть контракта.
+- **Роутинг: OSRM (`routing.openstreetmap.de`), не Valhalla.** Публичный
+  демо-сервер Valhalla нестабильно отдавался в сети при разработке (повторяемые
+  обрывы на больших ответах), плюс пользователь попросил переключиться на OSRM
+  как более производительный и столь же бесплатный. У `routing.openstreetmap.de`
+  (FOSSGIS) car/bike/foot — отдельные `/routed-{profile}/` сервисы; `Router` —
+  интерфейс, так что роутер можно сменить снова, не трогая `navStore.ts`/`tracking.ts`.
+- **`RouteManeuver.type` — это уже наша иконка (`ManeuverIcon`), не код
+  провайдера.** У OSRM манёвр описан строками `type`+`modifier` (не числом, как
+  у Valhalla), так что переводить их в протокольную иконку логичнее внутри
+  самого `Router`-а, а не в `navStore.ts` — иначе абстракция `Router` не
+  прятала бы детали конкретного провайдера, как и задумано.
 - **Кольца (roundabout):** номер съезда (`exit_no`) кладём только при входе в
-  кольцо (`ROUNDABOUT_ENTER`, тип 26 у Valhalla) — это тот манёвр, на котором
-  Valhalla сообщает `roundabout_exit_count`. Выход из кольца (`ROUNDABOUT_EXIT`)
+  кольцо (OSRM `type`: `roundabout`/`rotary`/`roundabout turn`, поле
+  `maneuver.exit`). Выход из кольца (`exit roundabout`/`exit rotary`)
   отображается как обычное «прямо».
-- **Маппинг типов манёвров Valhalla → иконки** сверен с
-  `valhalla-docs/turn-by-turn/api-reference.md` (значения 0..36) через
-  веб-поиск в момент написания кода, а не по памяти — см. `src/nav/maneuverMap.ts`.
+- **Развилка (`fork`) — отдельная ветка маппинга**, не общий поворот: по знаку
+  `modifier` уходит в «держаться правее/левее» (`KEEP_RIGHT`/`KEEP_LEFT`), а не
+  в `RIGHT`/`LEFT` — иначе эти две иконки протокола стали бы недостижимы.
+- **Маппинг типов манёвров OSRM → иконки** сверен с официальной документацией
+  `project-osrm.org/docs/.../api/#step-maneuver-object` (полный список `type`/
+  `modifier`) через веб-запрос в момент написания кода, а не по памяти — см.
+  `src/nav/maneuverMap.ts`.
 - **Сопряжение (passkey) не требует вызова `createBond()`.** У
   `react-native-ble-plx` нет публичного API для ручного запуска бондинга —
   ОС сама показывает системный диалог с 6-значным кодом при первой попытке

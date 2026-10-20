@@ -6,9 +6,8 @@ export interface LatLng {
 export type RouteProfile = 'pedestrian' | 'bicycle' | 'auto';
 
 export interface RouteManeuver {
-  /** Код типа манёвра Valhalla, см. maneuverMap.ts */
+  /** Уже переведённый код иконки протокола О.Ч.К.О. (ManeuverIcon), см. maneuverMap.ts */
   type: number;
-  instruction: string;
   streetNames: string[];
   distanceMeters: number;
   durationSeconds: number;

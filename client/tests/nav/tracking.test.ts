@@ -27,7 +27,6 @@ const route: Route = {
   maneuvers: [
     {
       type: 1,
-      instruction: 'Идите на восток',
       streetNames: ['Начало'],
       distanceMeters: 0,
       durationSeconds: 0,
@@ -36,7 +35,6 @@ const route: Route = {
     },
     {
       type: 10,
-      instruction: 'Поверните направо',
       streetNames: ['ул. Советская'],
       distanceMeters: 0,
       durationSeconds: 0,
@@ -45,7 +43,6 @@ const route: Route = {
     },
     {
       type: 4,
-      instruction: 'Вы на месте',
       streetNames: [],
       distanceMeters: 0,
       durationSeconds: 0,
