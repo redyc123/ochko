@@ -8,6 +8,14 @@ import { useNavStore } from '../store/navStore';
 import { RouteMap } from './RouteMap';
 
 const SIMULATION_SPEED_OPTIONS = [1, 2, 5, 10] as const;
+/**
+ * На iOS watchPositionAsync обновляется только при физическом перемещении
+ * (distanceFilter) — timeInterval там игнорируется (это Android-опция). Без
+ * движения реальный разрыв между фиксами может доходить до нескольких минут
+ * (замерено на устройстве), а наш таймаут «Нет GPS» — 10с (ТЗ). Поэтому
+ * досылаем фикс принудительным опросом с запасом по времени до таймаута.
+ */
+const GPS_POLL_INTERVAL_MS = 5000;
 
 const STATUS_LABELS: Record<string, string> = {
   idle: 'Готово к вводу цели',
@@ -52,6 +60,8 @@ export function NavigationScreen(): React.JSX.Element {
       return;
     }
     let cancelled = false;
+    let pollTimer: ReturnType<typeof setInterval> | null = null;
+    let polling = false;
     (async () => {
       const { status: permStatus } = await Location.requestForegroundPermissionsAsync();
       if (permStatus !== 'granted' || cancelled) return;
@@ -60,9 +70,26 @@ export function NavigationScreen(): React.JSX.Element {
         (loc) =>
           updatePosition({ lat: loc.coords.latitude, lon: loc.coords.longitude }, Date.now()),
       );
+      pollTimer = setInterval(() => {
+        if (polling) return;
+        polling = true;
+        Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High })
+          .then((loc) => {
+            if (!cancelled) {
+              updatePosition({ lat: loc.coords.latitude, lon: loc.coords.longitude }, Date.now());
+            }
+          })
+          .catch(() => {
+            // временно нет фикса — подождём следующего тика опроса
+          })
+          .finally(() => {
+            polling = false;
+          });
+      }, GPS_POLL_INTERVAL_MS);
     })();
     return () => {
       cancelled = true;
+      if (pollTimer) clearInterval(pollTimer);
       locationSubscription.current?.remove();
       locationSubscription.current = null;
     };
