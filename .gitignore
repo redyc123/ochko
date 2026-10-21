@@ -42,3 +42,9 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+build/
+__pycache__/
+.pytest_cache/
+*.wav
+.venv

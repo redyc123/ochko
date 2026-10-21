@@ -1,0 +1,9 @@
+{
+  "python.analysis.typeshedPaths": ["typings"],
+  "python.analysis.extraPaths": ["typings"],
+  "python.analysis.typeCheckingMode": "basic",
+  "python.languageServer": "Pylance",
+  "python.analysis.diagnosticSeverityOverrides": {
+    "reportMissingModuleSource": "none"
+  }
+}
