@@ -24,9 +24,13 @@ class Display:
         self._ctl = b"\x40"
         self._vec = [self._ctl, None]
         self.on = False
+        self.available = False  # экран ответил по I2C; без него BLE всё равно стартует
         self.contrast = cfg.oled_contrast
         self.i2c = I2C(cfg.i2c_id, sda=Pin(cfg.i2c_sda), scl=Pin(cfg.i2c_scl), freq=cfg.i2c_freq)
-        self.init()
+        try:
+            self.init()
+        except OSError as e:
+            print("[okko] display: no OLED at 0x%02X (%s), continuing without screen" % (self.addr, e))
 
     def _c(self, *cmds):
         c = self._cmd
@@ -44,6 +48,7 @@ class Display:
         self.flush()
         self._c(0xAF)
         self.on = True
+        self.available = True
 
     def _window(self, x, page, w, h):
         b = self._win
@@ -113,6 +118,12 @@ class Display:
     # --- системные экраны (встроенный шрифт 8x8, 9 символов в строке) ---
 
     def _text(self, lines):
+        try:
+            self._draw_text(lines)
+        except OSError:
+            self.available = False
+
+    def _draw_text(self, lines):
         fb = self.fb
         fb.fill(0)
         y = (SCREEN_H - 10 * len(lines)) // 2 + 1
@@ -125,6 +136,7 @@ class Display:
         self.flush()
 
     def show_passkey(self, code):
+        print("[okko] passkey %06d" % code)
         self._text(("PAIR", "%06d" % code))
 
     def show_no_link(self):
@@ -132,7 +144,10 @@ class Display:
             self._text(("NO LINK",))
         else:
             self.fb.fill(0)
-            self.power(False)
+            try:
+                self.power(False)
+            except OSError:
+                self.available = False
 
     def show_error(self, msg):
         self._text(("ERROR", msg[:9]))
