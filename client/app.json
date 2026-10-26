@@ -69,6 +69,14 @@
           "microphonePermission": "Микрофон нужен, чтобы задавать вопросы голосовому ассистенту.",
           "speechRecognitionPermission": "Распознавание речи превращает ваш вопрос ассистенту в текст."
         }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "buildReactNativeFromSource": true
+          }
+        }
       ]
     ]
   }

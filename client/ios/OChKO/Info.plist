@@ -70,8 +70,12 @@
 	</dict>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Нужно для построения маршрута и навигации на очках.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Микрофон нужен, чтобы задавать вопросы голосовому ассистенту.</string>
 	<key>NSMotionUsageDescription</key>
 	<string>Allow $(PRODUCT_NAME) to detect your current motion activity</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Распознавание речи превращает ваш вопрос ассистенту в текст.</string>
 	<key>RCTMetroPort</key>
 	<string>$(RCT_METRO_PORT)</string>
 	<key>RCTNewArchEnabled</key>

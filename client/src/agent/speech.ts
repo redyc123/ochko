@@ -1,4 +1,4 @@
-import { ExpoSpeechRecognitionModule } from 'expo-speech-recognition';
+import type { ExpoSpeechRecognitionModule as SpeechModule } from 'expo-speech-recognition';
 
 /**
  * Распознавание речи с микрофона телефона — временная замена микрофону очков
@@ -21,15 +21,42 @@ export class SpeechError extends Error {
   }
 }
 
+/**
+ * Модуль грузится лениво: в dev-клиенте, собранном до добавления
+ * expo-speech-recognition, нативной части нет, и статический import ронял бы
+ * всё приложение. Без неё просто недоступен голосовой ввод.
+ */
+let cachedModule: typeof SpeechModule | null | undefined;
+
+function speechModule(): typeof SpeechModule | null {
+  if (cachedModule === undefined) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      cachedModule = (
+        require('expo-speech-recognition') as { ExpoSpeechRecognitionModule: typeof SpeechModule }
+      ).ExpoSpeechRecognitionModule;
+    } catch {
+      cachedModule = null;
+    }
+  }
+  return cachedModule;
+}
+
 export function isSpeechAvailable(): boolean {
   try {
-    return ExpoSpeechRecognitionModule.isRecognitionAvailable();
+    return speechModule()?.isRecognitionAvailable() ?? false;
   } catch {
     return false;
   }
 }
 
 export async function listenOnce(onPartial?: (text: string) => void): Promise<ListenHandle> {
+  const ExpoSpeechRecognitionModule = speechModule();
+  if (!ExpoSpeechRecognitionModule) {
+    throw new SpeechError(
+      'Распознавание речи не собрано в это приложение — пересоберите dev-клиент.',
+    );
+  }
   const permission = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
   if (!permission.granted) {
     throw new SpeechError('Нет доступа к микрофону или распознаванию речи.');

@@ -1,4 +1,7 @@
-FROM ghcr.io/astral-sh/uv:0.11.7-python3.11-bookworm-slim
+FROM python:3.11-slim
+
+# uv — той же версии, что локально; образа «uv + python» с такой версией нет
+COPY --from=ghcr.io/astral-sh/uv:0.11.7 /uv /uvx /bin/
 
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
