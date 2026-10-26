@@ -14,7 +14,10 @@
         "NSBluetoothAlwaysUsageDescription": "Приложению нужен Bluetooth для подключения к смарт-очкам О.Ч.К.О.",
         "NSLocationWhenInUseUsageDescription": "Нужно для построения маршрута и навигации на очках.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "Нужно, чтобы навигация продолжала работать, когда приложение свёрнуто.",
-        "UIBackgroundModes": ["bluetooth-central", "location"]
+        "UIBackgroundModes": [
+          "bluetooth-central",
+          "location"
+        ]
       }
     },
     "android": {
@@ -46,7 +49,9 @@
         "react-native-ble-plx",
         {
           "isBackgroundEnabled": true,
-          "modes": ["central"],
+          "modes": [
+            "central"
+          ],
           "bluetoothAlwaysPermission": "Приложению нужен Bluetooth для подключения к смарт-очкам О.Ч.К.О."
         }
       ],
@@ -56,6 +61,13 @@
           "locationAlwaysAndWhenInUsePermission": "Нужно, чтобы навигация продолжала работать, когда приложение свёрнуто.",
           "isAndroidBackgroundLocationEnabled": true,
           "isAndroidForegroundServiceEnabled": true
+        }
+      ],
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Микрофон нужен, чтобы задавать вопросы голосовому ассистенту.",
+          "speechRecognitionPermission": "Распознавание речи превращает ваш вопрос ассистенту в текст."
         }
       ]
     ]

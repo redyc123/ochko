@@ -65,6 +65,14 @@
 
 ## Этап 4 — LLM-агент с инструментами
 
+Сделан MVP на GigaChat (`src/agent/`, `src/store/agentStore.ts`, экран
+«Ассистент», сервер `../server` на Python — `uv run main.py`):
+ответы на любые вопросы, `navigate_to` / `choose_destination` /
+`stop_navigation` / `get_navigation_status`, переспрос при нескольких адресах
+(ответ «второй»/«3»/«отмена» разбирается локально без LLM). Голос — микрофон
+телефона через `expo-speech-recognition` (временно, до Этапа 3); на очках —
+двойное нажатие или wake word. Остальные пункты ниже — ещё открыты.
+
 - [ ] Интерфейс `LlmProvider.chat(messages, tools) → { text } | { toolCalls }`,
   инструменты в JSON Schema один раз, адаптеры под конкретные API.
 - [ ] Адаптеры: OpenAI-совместимый (по умолчанию — покрывает OpenAI,

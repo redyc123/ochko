@@ -63,6 +63,11 @@ export interface NavStoreState {
   setProfile: (profile: RouteProfile) => void;
   setSettings: (settings: Partial<NavSettings>) => void;
   navigateTo: (query: string) => Promise<void>;
+  /**
+   * Только поиск: при нескольких вариантах — status 'choosing', маршрут не
+   * строится (выбор за вызывающим — UI или агентом). null — ошибка сети.
+   */
+  searchDestination: (query: string) => Promise<GeocodeResult[] | null>;
   chooseDestination: (candidate: GeocodeResult) => Promise<void>;
   startNavigation: (nowMs: number) => void;
   stopNavigation: () => void;
@@ -183,6 +188,14 @@ export const useNavStore = create<NavStoreState>((set, get) => {
     },
 
     navigateTo: async (query) => {
+      const results = await get().searchDestination(query);
+      if (results === null) return;
+      if (results.length === 1 && AUTO_SELECT_SINGLE_RESULT) {
+        await routeAndMaybeStart({ lat: results[0]!.lat, lon: results[0]!.lon }, false);
+      }
+    },
+
+    searchDestination: async (query) => {
       set({ query, status: 'searching', errorMessage: null, candidates: [] });
       const viewbox = get().currentPosition
         ? {
@@ -198,18 +211,15 @@ export const useNavStore = create<NavStoreState>((set, get) => {
         results = await geocoder.search(query, { viewbox, limit: 5 });
       } catch {
         set({ status: 'error', errorMessage: 'Нет сети: не удалось найти адрес.' });
-        return;
+        return null;
       }
 
       if (results.length === 0) {
         set({ status: 'error', errorMessage: 'Ничего не найдено.', candidates: [] });
-        return;
+      } else if (results.length > 1) {
+        set({ status: 'choosing', candidates: results });
       }
-      if (results.length === 1 && AUTO_SELECT_SINGLE_RESULT) {
-        await routeAndMaybeStart({ lat: results[0]!.lat, lon: results[0]!.lon }, false);
-        return;
-      }
-      set({ status: 'choosing', candidates: results });
+      return results;
     },
 
     chooseDestination: async (candidate) => {
