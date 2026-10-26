@@ -10,6 +10,7 @@ import {
 } from '../ble/connection';
 import { EmulatorDevice } from '../emulator/EmulatorDevice';
 import { GlassesApi, type GlassesTransport } from '../glasses/api';
+import { FrameCompositor } from '../glasses/frameCompositor';
 
 export type DeviceMode = 'emulator' | 'ble';
 
@@ -38,6 +39,11 @@ const INITIAL_BLE_SNAPSHOT: ConnectionSnapshot = {
  */
 export class DelegatingTransport implements GlassesTransport {
   private bleConnection: GlassesConnection | null = null;
+  /** Реальные очки (прошивка v2) рисуют только готовые кадры — их собирает компоновщик. */
+  readonly compositor = new FrameCompositor((bytes) => {
+    if (!this.bleConnection) return Promise.reject(new Error('нет соединения с очками'));
+    return this.bleConnection.writeDisplay(bytes);
+  });
   private readonly eventListeners = new Set<Parameters<GlassesTransport['onGlassesEvent']>[0]>();
 
   constructor(
@@ -73,6 +79,7 @@ export class DelegatingTransport implements GlassesTransport {
       // Зеркалим те же байты в эмулятор для превью «тот же рендер, что в
       // эмуляторе» (ТЗ §1.6), даже когда реально пишем в настоящие очки.
       void this.emulator.writeDisplay(bytes);
+      return this.compositor.handleDisplayPacket(bytes);
     }
     return active.writeDisplay(bytes);
   }
@@ -157,7 +164,11 @@ export const useDeviceStore = create<DeviceStoreState>((set, get) => {
     registerBleManager: (manager) => {
       scanningManager = manager;
       connection = new GlassesConnection(manager);
-      connection.onStateChange((snapshot) => set({ bleConnection: snapshot }));
+      connection.onStateChange((snapshot) => {
+        set({ bleConnection: snapshot });
+        if (snapshot.state === 'connected') transport.compositor.start();
+        else transport.compositor.stop();
+      });
       transport.attachBleConnection(connection);
     },
 

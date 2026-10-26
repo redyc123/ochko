@@ -1,6 +1,7 @@
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect } from 'react';
 import { Platform } from 'react-native';
+import { startPhoneNotifications } from './src/notifications/phoneNotifications';
 import { RootNavigator } from './src/screens/RootNavigator';
 import { useDeviceStore } from './src/store/deviceStore';
 
@@ -28,6 +29,7 @@ export default function App(): React.JSX.Element {
   useEffect(() => {
     tryRegisterBleManager();
     void useDeviceStore.getState().hydrate();
+    return startPhoneNotifications(useDeviceStore.getState().glassesApi);
   }, []);
 
   return (

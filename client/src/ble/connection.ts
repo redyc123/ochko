@@ -2,6 +2,7 @@ import type { BleManager, Characteristic, Subscription } from 'react-native-ble-
 import { BleATTErrorCode, BleErrorCode } from 'react-native-ble-plx';
 import { base64Decode, base64Encode } from './protocol/bytes';
 import { decodeEvent, type GlassesEvent } from './protocol/events';
+import { fragmentPacket } from './protocol/fragment';
 import { decodeInfo, type GlassesInfo } from './protocol/info';
 
 /** Базовый UUID сервиса О.Ч.К.О. (ТЗ §4.1): `1277XXXX-4f16-4cec-abf9-1d12f945b15b`. */
@@ -19,6 +20,10 @@ export const OCHKO_CHARACTERISTICS = {
 } as const;
 
 export const REQUESTED_MTU = 247;
+/** Минимальный ATT MTU по спецификации BLE — если стек не сообщил договорённый. */
+const DEFAULT_ATT_MTU = 23;
+/** Заголовок ATT Write Request: опкод + хэндл. */
+const ATT_WRITE_OVERHEAD = 3;
 
 /**
  * Переводит ошибку react-native-ble-plx в понятное сообщение для пользователя.
@@ -177,6 +182,7 @@ export class GlassesConnection {
   private readonly subscriptions: Subscription[] = [];
   private displayQueue: SequentialWriteQueue | null = null;
   private controlQueue: SequentialWriteQueue | null = null;
+  private maxWriteSize = DEFAULT_ATT_MTU - ATT_WRITE_OVERHEAD;
 
   constructor(
     private readonly manager: GlassesBleManager,
@@ -207,7 +213,8 @@ export class GlassesConnection {
     try {
       await this.manager.connectToDevice(deviceId);
       await this.manager.discoverAllServicesAndCharacteristicsForDevice(deviceId);
-      await this.manager.requestMTUForDevice(deviceId, this.requestedMtu);
+      const device = await this.manager.requestMTUForDevice(deviceId, this.requestedMtu);
+      this.maxWriteSize = (device?.mtu || DEFAULT_ATT_MTU) - ATT_WRITE_OVERHEAD;
 
       const infoChar = await this.manager.readCharacteristicForDevice(
         deviceId,
@@ -245,14 +252,19 @@ export class GlassesConnection {
     if (!this.displayQueue) {
       throw new Error('writeDisplay: нет соединения с очками');
     }
-    return this.displayQueue.enqueue(bytes);
+    return this.enqueueFragments(this.displayQueue, bytes);
   }
 
   async writeControl(bytes: Uint8Array): Promise<void> {
     if (!this.controlQueue) {
       throw new Error('writeControl: нет соединения с очками');
     }
-    return this.controlQueue.enqueue(bytes);
+    return this.enqueueFragments(this.controlQueue, bytes);
+  }
+
+  /** Сообщение длиннее одной записи режется на фрагменты (протокол §2); очередь сохраняет порядок. */
+  private async enqueueFragments(queue: SequentialWriteQueue, bytes: Uint8Array): Promise<void> {
+    await Promise.all(fragmentPacket(bytes, this.maxWriteSize).map((f) => queue.enqueue(f)));
   }
 
   private setUpWriteQueues(deviceId: string): void {

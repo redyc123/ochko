@@ -41,6 +41,8 @@ export const NavState = {
   NO_GPS: 4,
   ARRIVED: 5,
   ROUTE_ERROR: 6,
+  /** Только на стороне приложения: маршрут построен и ждёт нажатия кнопки. */
+  READY: 7,
 } as const;
 
 export const ClearLayer = { ALL: 0, NOTIFY: 1, NAV: 2, AGENT: 3 } as const;

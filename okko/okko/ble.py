@@ -73,6 +73,7 @@ class Ble:
         self.on_disconnect = None
         self.on_passkey = None
         self.on_secure = None
+        self.on_gattc = None  # события GATT-клиента (ANCS), вызываются из IRQ
 
         b = self.ble = bluetooth.BLE()
         b.active(True)
@@ -97,6 +98,10 @@ class Ble:
             self.log("adv error", e)
 
     def _irq(self, event, data):
+        if 9 <= event <= 18:  # _IRQ_GATTC_*
+            if self.on_gattc:
+                self.on_gattc(event, data)
+            return
         if event == _IRQ_GATTS_WRITE:
             conn, h = data
             ch = self._chan.get(h)

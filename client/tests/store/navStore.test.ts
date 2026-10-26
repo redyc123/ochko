@@ -305,3 +305,35 @@ describe('enableSimulation / tickSimulation', () => {
     expect(useNavStore.getState().currentPosition).not.toEqual(ORIGIN);
   });
 });
+
+describe('кнопка очков', () => {
+  async function buildReadyRoute() {
+    useNavStore.getState().updatePosition(ORIGIN, 0);
+    const shape = [ORIGIN, { lat: 0, lon: 0.002 }];
+    (globalThis as unknown as { fetch: jest.Mock }).fetch = mockFetch({
+      nominatim: [nominatimResult(0, 0.002)],
+      osrm: osrmRouteFor(shape, [{ type: 'depart' }, { type: 'arrive' }]),
+    });
+    await useNavStore.getState().navigateTo('Пятёрочка');
+  }
+
+  it('после построения маршрута на очках подсказка нажать кнопку', async () => {
+    await buildReadyRoute();
+    expect(useDeviceStore.getState().emulator.getScreenState().nav.state).toBe(NavState.READY);
+  });
+
+  it('короткое нажатие запускает маршрут, удержание сбрасывает', async () => {
+    await buildReadyRoute();
+    const emulator = useDeviceStore.getState().emulator;
+    emulator.pressButton(1);
+    expect(useNavStore.getState().status).toBe('navigating');
+    emulator.pressButton(2);
+    expect(useNavStore.getState().status).toBe('idle');
+    expect(useNavStore.getState().route).toBeNull();
+  });
+
+  it('короткое нажатие без маршрута ничего не делает', () => {
+    useDeviceStore.getState().emulator.pressButton(1);
+    expect(useNavStore.getState().status).toBe('idle');
+  });
+});

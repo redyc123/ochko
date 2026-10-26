@@ -35,6 +35,7 @@ EV_CONFIRM_RESULT = 0x03  # резерв
 EV_BATTERY = 0x04
 EV_ERROR = 0x05
 EV_RESULT = 0x06
+EV_NOTIFY = 0x07  # уведомление iPhone через ANCS
 
 # BUTTON kind
 BTN_SHORT = 1
@@ -75,6 +76,7 @@ CAP_NAV_ICONS = 0x0004
 CAP_CYRILLIC = 0x0008
 CAP_FRAME = 0x0010
 CAP_PACKBITS = 0x0020
+CAP_ANCS = 0x0040
 
 # FRAME enc
 ENC_RAW = 0
@@ -130,6 +132,27 @@ def encode_button(seq, kind):
 
 def encode_battery(seq, percent, mv, charging):
     return encode_message(EV_BATTERY, seq, bytes((percent, mv & 0xFF, (mv >> 8) & 0xFF, 1 if charging else 0)))
+
+
+def utf8_cut(b, n):
+    """Не длиннее n байт и без разрезанного посередине символа UTF-8."""
+    b = bytes(b)
+    if len(b) <= n:
+        return b
+    while n > 0 and (b[n] & 0xC0) == 0x80:
+        n -= 1
+    return b[:n]
+
+
+def notify_payload(category, title, message):
+    """category u8 (ANCS CategoryID), title (len u8 + UTF-8), message (len u8 + UTF-8)."""
+    t = utf8_cut(title, 48)
+    m = utf8_cut(message, 120)
+    return bytes((category, len(t))) + t + bytes((len(m),)) + m
+
+
+def encode_notify(seq, category, title, message):
+    return encode_message(EV_NOTIFY, seq, notify_payload(category, title, message))
 
 
 def encode_error(seq, code, text=""):

@@ -7,6 +7,8 @@ export const EventType = {
   CONFIRM_RESULT: 0x03,
   BATTERY: 0x04,
   ERROR: 0x05,
+  /** Протокол v2: уведомление iPhone, полученное очками через ANCS. */
+  NOTIFY: 0x07,
 } as const;
 
 export const ButtonKind = {
@@ -22,7 +24,8 @@ export type GlassesEvent =
   | { type: 'WAKEWORD' }
   | { type: 'CONFIRM_RESULT'; id: number; result: boolean }
   | { type: 'BATTERY'; percent: number; mv: number; charging: boolean }
-  | { type: 'ERROR'; code: number; text: string };
+  | { type: 'ERROR'; code: number; text: string }
+  | { type: 'NOTIFY'; category: number; title: string; message: string };
 
 function encodePayload(event: GlassesEvent): { type: number; payload: Uint8Array } {
   switch (event.type) {
@@ -55,6 +58,20 @@ function encodePayload(event: GlassesEvent): { type: number; payload: Uint8Array
           .u8(event.code)
           .u8(textBytes.length)
           .bytes(textBytes)
+          .toUint8Array(),
+      };
+    }
+    case 'NOTIFY': {
+      const title = utf8Encode(truncateUtf8(event.title, 48));
+      const message = utf8Encode(truncateUtf8(event.message, 120));
+      return {
+        type: EventType.NOTIFY,
+        payload: new ByteWriter()
+          .u8(event.category)
+          .u8(title.length)
+          .bytes(title)
+          .u8(message.length)
+          .bytes(message)
           .toUint8Array(),
       };
     }
@@ -93,6 +110,12 @@ export function decodeEvent(packet: Uint8Array): { seq: number; event: GlassesEv
       const len = r.u8();
       const text = utf8Decode(r.bytes(len));
       return { seq: header.seq, event: { type: 'ERROR', code, text } };
+    }
+    case EventType.NOTIFY: {
+      const category = r.u8();
+      const title = utf8Decode(r.bytes(r.u8()));
+      const message = utf8Decode(r.bytes(r.u8()));
+      return { seq: header.seq, event: { type: 'NOTIFY', category, title, message } };
     }
     default:
       throw new RangeError(`decodeEvent: неизвестный type 0x${header.type.toString(16)}`);

@@ -46,6 +46,13 @@ class Glasses:
         self.ble.on_connect = self._connected
         self.ble.on_disconnect = self._disconnected
         self.ble.on_passkey = self.display.show_passkey
+        self.ble.on_secure = self._secured
+
+        self.ancs = None
+        if cfg.ancs:
+            from .ancs import Ancs
+            self.ancs = Ancs(self.ble.ble, self.log, self._phone_notification)
+            self.ble.on_gattc = self.ancs.irq
 
         from .protocol import Reassembler
         self._rx = (Reassembler(), Reassembler())
@@ -53,7 +60,8 @@ class Glasses:
         from .button import Button
         self.button = Button(cfg, self._button)
 
-        caps = P.CAP_FRAME | P.CAP_PACKBITS | (P.CAP_AUDIO if self.mic.available else 0)
+        caps = P.CAP_FRAME | P.CAP_PACKBITS | (P.CAP_AUDIO if self.mic.available else 0) \
+            | (P.CAP_ANCS if self.ancs else 0)
         self.info = P.encode_info(cfg.fw_version, caps)
         self.ble.set_info(self.info)
 
@@ -108,8 +116,25 @@ class Glasses:
         self._last_batt = None
         self._audio_flag.set()  # разбудить батарею/аудио
 
+    def _secured(self, ok):
+        # Код пары остаётся в буфере, пока его не перерисует FRAME: стираем сразу после шифрования
+        self.log("secure", ok)
+        if ok:
+            try:
+                self.display.clear()
+            except OSError:
+                pass
+            if self.ancs and self.ble.conn is not None:
+                self.ancs.start(self.ble.conn)
+
+    def _phone_notification(self, category, title, message):
+        self.log("notify", category, len(title), len(message))
+        self.send_event(P.EV_NOTIFY, P.notify_payload(category, title, message))
+
     def _disconnected(self):
         self.log("disconnected")
+        if self.ancs:
+            self.ancs.stop()
         if self._recording:
             self._recording = False
             self.mic.stop()
@@ -207,19 +232,17 @@ class Glasses:
         except OSError as e:
             self.log("hw", e)
             st = P.ST_HW_ERROR
-            if chan == P.CH_DISPLAY:
-                self._recover_display()
+            if chan == P.CH_DISPLAY and self.display.available:
+                # Без повторной инициализации здесь: при отвалившемся экране каждая
+                # попытка ждёт таймаутов I2C и блокирует цикл до срабатывания WDT.
+                # Экран переинициализирует главный цикл раз в 2 с.
+                self.display.available = False
+                self.send_error(P.ERR_DISPLAY, "I2C")
         except Exception as e:
             self.log("handler", repr(e))
             st = P.ST_HW_ERROR
             self.send_error(P.ERR_INTERNAL, type(e).__name__)
         self._result(chan, r.seq, r.type, st)
-
-    def _recover_display(self):
-        try:
-            self.display.init()
-        except OSError:
-            self.send_error(P.ERR_DISPLAY, "I2C")
 
     async def _rx_task(self):
         ble = self.ble
@@ -233,6 +256,7 @@ class Glasses:
                     self._handle(item[0], item[1])
                 except Exception as e:
                     self.log("rx", repr(e))
+                await asyncio.sleep_ms(0)  # отдать цикл WDT и другим задачам между пакетами
             if ble.overflow != self._sent_overflow:
                 self._sent_overflow = ble.overflow
                 self.send_error(P.ERR_INTERNAL, "rx overflow")
@@ -292,6 +316,8 @@ class Glasses:
         self.ble.advertise()
         asyncio.create_task(self._rx_task())
         asyncio.create_task(self.button.run())
+        if self.ancs:
+            asyncio.create_task(self.ancs.run())
         if self.mic.available:
             asyncio.create_task(self._audio_task())
         if self._adc is not None:
@@ -302,6 +328,11 @@ class Glasses:
         while True:
             if self._wdt:
                 self._wdt.feed()
+            if not self.display.available and self.display.try_init():
+                # Экран появился позже старта: вернуть системный экран, кадры пришлёт приложение
+                self.log("display ready")
+                if self.ble.conn is None:
+                    self.display.show_no_link()
             if cfg.log_level >= LOG_DEBUG:
                 print("[okko] mem_free", gc.mem_free())
             await asyncio.sleep_ms(period)

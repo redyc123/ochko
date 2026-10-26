@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import { AppState, FlatList, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import { NotificationListener } from '../../modules/notification-listener';
 import { EmulatorScreen } from '../emulator/EmulatorScreen';
 import { useDeviceStore } from '../store/deviceStore';
 import type { ScannedGlasses } from '../ble/connection';
@@ -12,6 +13,26 @@ const CONNECTION_STATE_LABELS: Record<string, string> = {
   disconnected: 'Отключено',
   error: 'Ошибка',
 };
+
+/** Android: доступ к уведомлениям выдаётся только в системных настройках. */
+function NotificationAccessRow(): React.JSX.Element | null {
+  const [granted, setGranted] = useState(() => NotificationListener?.isPermissionGranted() ?? true);
+
+  useEffect(() => {
+    // Пользователь возвращается из настроек — перепроверяем
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') setGranted(NotificationListener?.isPermissionGranted() ?? true);
+    });
+    return () => sub.remove();
+  }, []);
+
+  if (!NotificationListener || granted) return null;
+  return (
+    <Pressable style={styles.button} onPress={() => NotificationListener?.openPermissionSettings()}>
+      <Text style={styles.buttonText}>Разрешить доступ к уведомлениям</Text>
+    </Pressable>
+  );
+}
 
 export function DeviceScreen(): React.JSX.Element {
   const mode = useDeviceStore((s) => s.mode);
@@ -58,6 +79,8 @@ export function DeviceScreen(): React.JSX.Element {
           onValueChange={(v) => setMode(v ? 'emulator' : 'ble')}
         />
       </View>
+
+      <NotificationAccessRow />
 
       {info && (
         <Text style={styles.info}>

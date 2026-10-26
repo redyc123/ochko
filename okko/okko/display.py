@@ -1,11 +1,12 @@
 # Драйвер SSD1306 72x40 с теневым буфером и системными экранами.
 # Инициализация по образцу U8g2 ssd1306_72x40_er.
 import framebuf
+import time
 from machine import I2C, Pin
 
 from . import packbits
 from .protocol import (SCREEN_W, SCREEN_H, SCREEN_PAGES, ENC_RAW, ENC_PACKBITS, check_rect,
-                       ST_OK, ST_BAD_LENGTH, ST_OUT_OF_BOUNDS, ST_DECODE_ERROR)
+                       ST_OK, ST_BAD_LENGTH, ST_OUT_OF_BOUNDS, ST_DECODE_ERROR, ST_HW_ERROR)
 
 _FRAME_HDR = 5
 
@@ -27,10 +28,21 @@ class Display:
         self.available = False  # экран ответил по I2C; без него BLE всё равно стартует
         self.contrast = cfg.oled_contrast
         self.i2c = I2C(cfg.i2c_id, sda=Pin(cfg.i2c_sda), scl=Pin(cfg.i2c_scl), freq=cfg.i2c_freq)
+        # При подаче питания OLED просыпается позже ESP32: несколько попыток с паузой
+        for _ in range(10):
+            if self.try_init():
+                break
+            time.sleep_ms(100)
+        else:
+            print("[okko] display: no OLED at 0x%02X, will retry" % self.addr)
+
+    def try_init(self):
         try:
             self.init()
-        except OSError as e:
-            print("[okko] display: no OLED at 0x%02X (%s), continuing without screen" % (self.addr, e))
+            return True
+        except OSError:
+            self.available = False
+            return False
 
     def _c(self, *cmds):
         c = self._cmd
@@ -69,6 +81,11 @@ class Display:
     def flush(self):
         self._send(0, 0, SCREEN_W, SCREEN_PAGES, self.buf)
 
+    def _check(self):
+        # Экран не отвечает: в I2C не ходим, буфер сохраняется и выводится при восстановлении
+        if not self.available:
+            raise OSError(19)
+
     def set_brightness(self, level):
         if level == 0:
             self._c(0xAE)
@@ -84,6 +101,7 @@ class Display:
 
     def clear(self):
         self.fb.fill(0)
+        self._check()
         self.flush()
 
     def frame(self, p):
@@ -112,6 +130,8 @@ class Display:
         for r in range(h):
             o = (page + r) * SCREEN_W + x
             buf[o:o + w] = data[r * w:r * w + w]
+        if not self.available:
+            return ST_HW_ERROR
         self._send(x, page, w, h, data)
         return ST_OK
 
@@ -130,6 +150,7 @@ class Display:
         for s in lines:
             fb.text(s, max(0, (SCREEN_W - 8 * len(s)) // 2), y, 1)
             y += 10
+        self._check()
         if not self.on:
             self._c(0xAF)
             self.on = True

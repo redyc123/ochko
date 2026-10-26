@@ -60,6 +60,9 @@ class Config:
     battery_max_mv = 4200
     battery_period_s = 300  # не чаще раза в 5 минут
 
+    # Уведомления iPhone (ANCS); на Android сервиса нет, клиент просто молчит
+    ancs = True
+
     # Надёжность
     wdt_timeout_ms = 8000  # 0 — без сторожевого таймера
     rx_queue_len = 8

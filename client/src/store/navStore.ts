@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { NavState } from '../ble/protocol/display';
+import { ButtonKind } from '../ble/protocol/events';
 import { NominatimClient, type GeocodeResult } from '../nav/geocode';
 import { OsrmRouter, RouteError, type Router } from '../nav/router';
 import { RouteSimulator, type SimulatedFix } from '../nav/simulate';
@@ -126,11 +127,32 @@ export const useNavStore = create<NavStoreState>((set, get) => {
     set({ destination, errorMessage: null });
     const route = await buildRoute(from, destination);
     if (!route) return;
+    // Маршрут сбросили кнопкой, пока он строился
+    if (get().status === 'idle') return;
     set({ route, status: 'ready' });
     if (autoStart) {
       get().startNavigation(nowMs ?? Date.now());
+    } else {
+      void glassesApi().showNavState(NavState.READY);
     }
   }
+
+  // Кнопка очков: короткое нажатие запускает построенный маршрут,
+  // удержание во время маршрута сбрасывает экран к часам.
+  glassesApi().onButton((kind) => {
+    const { status } = get();
+    if (kind === ButtonKind.SHORT && status === 'ready') {
+      get().startNavigation(Date.now());
+    } else if (
+      kind === ButtonKind.HOLD_START &&
+      (status === 'ready' ||
+        status === 'navigating' ||
+        status === 'rerouting' ||
+        status === 'arrived')
+    ) {
+      get().stopNavigation();
+    }
+  });
 
   return {
     settings: {

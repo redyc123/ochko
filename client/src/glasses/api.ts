@@ -153,6 +153,15 @@ export class GlassesApi {
     });
   }
 
+  /** Уведомление iPhone, которое очки получили сами через ANCS. */
+  onPhoneNotification(
+    listener: (category: number, title: string, message: string) => void,
+  ): () => void {
+    return this.transport.onGlassesEvent((e) => {
+      if (e.type === 'NOTIFY') listener(e.category, e.title, e.message);
+    });
+  }
+
   onGlassesError(listener: (code: number, text: string) => void): () => void {
     return this.transport.onGlassesEvent((e) => {
       if (e.type === 'ERROR') listener(e.code, e.text);

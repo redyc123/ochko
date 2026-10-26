@@ -1,4 +1,4 @@
-import { bytesToHex, hexToBytes } from '@/ble/protocol/bytes';
+import { bytesToHex, hexToBytes, utf8Encode } from '@/ble/protocol/bytes';
 import { decodeEvent, encodeEvent, type GlassesEvent } from '@/ble/protocol/events';
 
 describe('events', () => {
@@ -35,5 +35,33 @@ describe('events', () => {
     const hex = '0105000f0111424c452077726974652074696d656f7574';
     expect(bytesToHex(encodeEvent(event, 15))).toBe(hex);
     expect(decodeEvent(hexToBytes(hex)).event).toEqual(event);
+  });
+});
+
+describe('NOTIFY (ANCS, протокол v2)', () => {
+  it('декодирует пакет прошивки', () => {
+    const title = utf8Encode('Чат');
+    const packet = Uint8Array.from([
+      2,
+      0x07,
+      0,
+      3,
+      4,
+      title.length,
+      ...title,
+      5,
+      ...utf8Encode('hello'),
+    ]);
+    expect(decodeEvent(packet).event).toEqual({
+      type: 'NOTIFY',
+      category: 4,
+      title: 'Чат',
+      message: 'hello',
+    });
+  });
+
+  it('кодирование и декодирование сходятся', () => {
+    const event = { type: 'NOTIFY' as const, category: 1, title: 'Мама', message: 'Звонок' };
+    expect(decodeEvent(encodeEvent(event, 9)).event).toEqual(event);
   });
 });

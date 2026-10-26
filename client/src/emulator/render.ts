@@ -37,6 +37,7 @@ const NAV_STATE_LABELS: Readonly<Record<number, string>> = {
   [NavState.NO_GPS]: 'Нет GPS',
   [NavState.ARRIVED]: 'Вы на месте',
   [NavState.ROUTE_ERROR]: 'Ошибка маршрута',
+  [NavState.READY]: 'Нажми кнопку, чтобы начать',
 };
 
 export function navStateLabel(state: number): string {
