@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Smart-модуль для очков</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.184.0/build/three.module.js",
+    "three/addons/controls/OrbitControls.js": "https://unpkg.com/three@0.184.0/examples/jsm/controls/OrbitControls.js",
+    "three/addons/exporters/OBJExporter.js": "https://unpkg.com/three@0.184.0/examples/jsm/exporters/OBJExporter.js",
+    "three/addons/exporters/GLTFExporter.js": "https://unpkg.com/three@0.184.0/examples/jsm/exporters/GLTFExporter.js"
+  },
+  "integrity": {
+    "https://unpkg.com/three@0.184.0/build/three.module.js": "sha384-8FCZ1eVO6it4+pbec2aDtnTrwjWXZLJRC+MAGCIPDgsYnUrl/E0A2YlF8ioMKI/J",
+    "https://unpkg.com/three@0.184.0/build/three.core.js": "sha384-dw2ooPewaEIrAgl6oFDBmmBWCE9oW9LxRGcfwZ0hLvEprzo202wXl7vCYHRlSnOT",
+    "https://unpkg.com/three@0.184.0/examples/jsm/controls/OrbitControls.js": "sha384-4rziNxOBZKQ69i+w+f89KJ55TCYquwchVbByQwmaOeIOXdOU2PLDn3kOfXHwIJC9",
+    "https://unpkg.com/three@0.184.0/examples/jsm/exporters/OBJExporter.js": "sha384-nbwtoZENJD3Vq+ACK0CuGQdPMuDWHkamC2KJD70EV5nfg6jQjfppKOea07YJN+N3",
+    "https://unpkg.com/three@0.184.0/examples/jsm/exporters/GLTFExporter.js": "sha384-VofkvpG6HERhFCYbsUOHeNXBCqID2nfqkQqnVzE1jc/oPcz+qJ13ADdXH08hE+cQ"
+  }
+}
+</script>
+<link rel="stylesheet" href="_ds/organic-13ac1802-2dd5-4f1b-bfd9-d44a520ce1c5/styles.css">
+<style>
+  html, body { margin: 0; height: 100%; background: var(--color-bg); overflow: hidden; }
+  a { color: var(--color-accent-700); } a:hover { color: var(--color-accent-800); }
+  three-d-stage:not(:defined) { visibility: hidden; }
+  body { display: flex; }
+  three-d-stage { display: block; flex: 1 1 auto; min-width: 0; height: 100vh; }
+  .panel { flex: 0 0 auto; align-self: flex-start; margin: var(--space-4, 20px); margin-right: 0; width: 320px; box-sizing: border-box; max-height: calc(100vh - 40px); overflow: auto; background: var(--color-surface, var(--color-neutral-100)); border-radius: var(--radius-lg); box-shadow: var(--shadow-md); padding: var(--space-4, 20px); font-family: var(--font-body); color: var(--color-text); }
+  .panel h1 { font-family: var(--font-heading); font-weight: 400; font-size: 24px; line-height: 1.15; margin: 0 0 6px; text-wrap: pretty; }
+  .panel p { margin: 0 0 14px; font-size: 14px; line-height: 1.45; color: var(--color-neutral-700); }
+  .legend { list-style: none; margin: 0 0 16px; padding: 0; display: grid; gap: 7px; font-size: 13.5px; line-height: 1.35; }
+  .legend li { display: grid; grid-template-columns: 14px 1fr; gap: 10px; align-items: start; }
+  .legend i { width: 12px; height: 12px; border-radius: 999px; margin-top: 3px; }
+  .legend b { font-weight: 600; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  @media (max-height: 760px) { .legend { display: none; } }
+  @media (max-width: 760px) { body { flex-direction: column; } .panel { width: auto; margin: 12px 12px 0; padding: 14px; } .panel p, .legend { display: none; } three-d-stage { height: auto; flex: 1 1 auto; } }
+  .demo { margin: 0 0 16px; padding: 12px; border-radius: var(--radius-md, 12px); background: var(--color-neutral-200, #eadcc4); display: grid; gap: 8px; }
+  .demo canvas { width: 100%; aspect-ratio: 9 / 5; border-radius: 8px; background: #000; image-rendering: pixelated; display: block; }
+  .demo-cap { font-size: 13px; line-height: 1.35; color: var(--color-neutral-800, #3a3532); min-height: 2.7em; text-wrap: pretty; }
+  .demo-steps { display: flex; gap: 6px; }
+  .demo-steps span { flex: 1; height: 4px; border-radius: 999px; background: var(--color-neutral-300, #d8c8ad); transition: background .2s; }
+  .demo-steps span.on { background: var(--color-accent); }
+  .pov { position: fixed; z-index: 5; overflow: hidden; background: #2b201b url(assets/world.jpg) center / cover; border-radius: var(--radius-lg, 24px); }
+  .pov[hidden] { display: none; }
+  .pov-lens { position: absolute; inset: 9% 13% 11% 5%; border-radius: 22% / 30%; box-shadow: 0 0 0 200vmax #2b201b, inset 0 0 60px rgba(223,232,228,.25); filter: blur(9px); pointer-events: none; }
+  .pov-module { position: absolute; right: -9%; top: 14%; width: 20%; height: 78%; border-radius: 38%; background: #363840; filter: blur(22px); opacity: .95; }
+  .pov-rod { position: absolute; right: -2%; top: 5%; width: 26%; height: 6%; border-radius: 999px; background: #363840; filter: blur(14px); }
+  .pov-cube { position: absolute; right: 12%; top: 7%; width: 34%; aspect-ratio: 1; border-radius: 6%; backdrop-filter: brightness(.82) saturate(.9); box-shadow: inset 0 0 0 10px rgba(207,224,220,.35), 0 0 24px rgba(207,224,220,.25); display: grid; place-items: center; }
+  .pov-cube canvas { width: 90%; aspect-ratio: 9 / 5; image-rendering: pixelated; filter: drop-shadow(0 0 1px rgba(191,230,255,.9)) drop-shadow(0 0 6px rgba(191,230,255,.35)); }
+  .pov-cap { position: absolute; left: 5%; bottom: 3.5%; right: 30%; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; color: #f5ead8; font-size: 14px; line-height: 1.4; text-wrap: pretty; }
+  .pov-close { position: absolute; right: 16px; bottom: 16px; }
+  .pov .btn[aria-pressed="false"], .pov-close { background: var(--color-bg); color: var(--color-text); border-color: var(--color-bg); }
+  .pov-modes { position: absolute; left: 16px; top: 16px; display: flex; gap: 8px; }
+  .pov-world { position: absolute; inset: 0; background: url(assets/world.jpg) center / cover; transform-origin: 46% 55%; }
+  .btn[aria-pressed="true"] { background: #363840; color: #fff; border-color: #363840; }
+</style>
+</head>
+<body>
+<div class="panel">
+  <h1>Smart-модуль для любых очков</h1>
+  <p>Держится только на дужке · корпус 56 × 20 × 11 мм, PETG. Экран и куб вынесены перед линзой (со стороны мира), у её верхнего внешнего угла, с зазором от оправы. Очки складываются, ничего не снимая.</p>
+  <div class="demo">
+    <canvas id="oledView" width="72" height="40" aria-label="Что видно на экране"></canvas>
+    <div class="demo-steps"><span></span><span></span><span></span></div>
+    <div class="demo-cap" id="demoCap"></div>
+  </div>
+  <ul class="legend">
+    <li><i style="background:#2c3a2e"></i><span><b>XIAO ESP32-C6</b>: 21 × 17,5 мм, BLE 5, зарядка, USB-C в заднем торце</span></li>
+    <li><i style="background:#c9bfae"></i><span><b>LiPo 401030</b>: 3,7 В, ~100 мА·ч, 30 × 10 × 4 мм, с защитой; стоит за XIAO вдоль дужки</span></li>
+    <li><i style="background:#c67139"></i><span><b>Тактовая кнопка 6 × 6 мм</b>: колпачок над аккумулятором</span></li>
+    <li><i style="background:#d9a63a"></i><span><b>Микрофон INMP441, I2S</b>: круглая плата ⌀14 мм над XIAO, звук идёт через отверстия в крышке; VDD, GND, SD, WS, SCK, L/R</span></li>
+    <li><i style="background:#d6d1c8"></i><span><b>SS-12D00</b>: ползунок питания на верхней грани</span></li>
+    <li><i style="background:#1d1c1b"></i><span><b>OLED 0,44″ 72 × 40, SSD1306, I2C</b>: GND, VCC, SCL, SDA</span></li>
+    <li><i style="background:#363840"></i><span><b>Гибкая шарнирная трубка 1/4″</b> (как для подачи СОЖ): вкручена в центр переднего торца корпуса, гнётся и держит дисплей в нужном положении</span></li>
+    <li><i style="background:#cfe0dc"></i><span><b>Линза f 20 мм ⌀10</b> → <b>куб 10 мм 50:50</b> перед линзой; картинка идёт к глазу сквозь линзу очков</span></li>
+    <li><i style="background:#363840"></i><span><b>Корпус PETG</b> + два «крокодила» с <b>резиновыми накладками</b></span></li>
+  </ul>
+  <div class="actions">
+    <button class="btn btn-primary" id="play" aria-pressed="true">Пауза</button>
+    <button class="btn btn-secondary" id="xray" aria-pressed="false">Рентген</button>
+    <button class="btn btn-secondary" id="explode" aria-pressed="false">Разнести</button>
+    <button class="btn btn-secondary" id="fold" aria-pressed="false">Сложить</button>
+    <button class="btn btn-ghost" id="frame" aria-pressed="true">Оправа</button>
+    <button class="btn btn-secondary" id="povBtn" aria-pressed="false">Глазами пользователя</button>
+  </div>
+</div>
+<three-d-stage name="smart-glasses-module" background="#f5ead8"></three-d-stage>
+<div class="pov" id="pov" hidden aria-label="Вид глазами пользователя">
+  <div class="pov-world" id="povWorld"></div>
+  <div class="pov-cube"><canvas id="hud" width="72" height="40"></canvas></div>
+  <div class="pov-lens"></div>
+  <div class="pov-rod"></div>
+  <div class="pov-module"></div>
+  <div class="pov-cap"><span class="tag" style="background:#363840;color:#fff">Правый глаз</span><span>Оправа и модуль близко к глазу — размыты. Картинку с экрана линза собирает «на бесконечность», поэтому текст резкий, когда смотришь вдаль.</span></div>
+  <div class="pov-modes"><button class="btn btn-secondary" data-mode="notify" aria-pressed="true">Уведомление</button><button class="btn btn-secondary" data-mode="nav" aria-pressed="false">Навигатор</button></div>
+  <button class="btn btn-secondary pov-close" id="povClose">Обратно к 3D</button>
+</div>
+<script src="three-d-stage.js"></script>
+<script type="module">
+const stage = document.querySelector('three-d-stage');
+const { THREE } = await stage.ready;
+const mm = v => v / 1000;
+
+const M = {
+  petg: new THREE.MeshStandardMaterial({ name: 'petg_graphite', color: 0x363840, roughness: 0.55, metalness: 0.0, transparent: true, opacity: 1 }),
+  acetate: new THREE.MeshStandardMaterial({ name: 'frame_acetate', color: 0x3a2a22, roughness: 0.35, metalness: 0.05 }),
+  lens: new THREE.MeshStandardMaterial({ name: 'lens_glass', color: 0xdfe8e4, roughness: 0.05, metalness: 0.0, transparent: true, opacity: 0.28 }),
+  pcb: new THREE.MeshStandardMaterial({ name: 'pcb', color: 0x2c3a2e, roughness: 0.6, metalness: 0.1 }),
+  metal: new THREE.MeshStandardMaterial({ name: 'metal', color: 0xd6d1c8, roughness: 0.3, metalness: 0.35 }),
+  battery: new THREE.MeshStandardMaterial({ name: 'lipo_foil', color: 0xc9bfae, roughness: 0.4, metalness: 0.25 }),
+  touch: new THREE.MeshStandardMaterial({ name: 'touch_terracotta', color: 0xc67139, roughness: 0.5, metalness: 0.0 }),
+  oled: new THREE.MeshStandardMaterial({ name: 'oled_black', color: 0x1d1c1b, roughness: 0.2, metalness: 0.1 }),
+  screen: new THREE.MeshStandardMaterial({ name: 'oled_pixels', color: 0xf3b27a, emissive: 0xe08a4a, emissiveIntensity: 0.9, roughness: 0.3 }),
+  rubber: new THREE.MeshStandardMaterial({ name: 'rubber_pad', color: 0x3b3633, roughness: 0.95, metalness: 0.0 }),
+  prism: new THREE.MeshStandardMaterial({ name: 'prism_glass', color: 0xcfe0dc, roughness: 0.05, metalness: 0.0, transparent: true, opacity: 0.35 }),
+};
+
+function rrShape(w, h, r, cx = 0, cy = 0) {
+  const s = new THREE.Shape(), x = cx - w / 2, y = cy - h / 2;
+  s.moveTo(x + r, y); s.lineTo(x + w - r, y); s.quadraticCurveTo(x + w, y, x + w, y + r);
+  s.lineTo(x + w, y + h - r); s.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  s.lineTo(x + r, y + h); s.quadraticCurveTo(x, y + h, x, y + h - r);
+  s.lineTo(x, y + r); s.quadraticCurveTo(x, y, x + r, y);
+  return s;
+}
+// Rounded box centered on origin, extruded along z
+function rbox(w, h, d, r, bevel) {
+  const b = Math.min(bevel ?? r * 0.5, d / 2 - 1e-5);
+  const g = new THREE.ExtrudeGeometry(rrShape(w - 2 * b, h - 2 * b, Math.max(r - b, 1e-5)), {
+    depth: d - 2 * b, bevelEnabled: true, bevelThickness: b, bevelSize: b, bevelSegments: 4, curveSegments: 10 });
+  g.translate(0, 0, -(d - 2 * b) / 2);
+  return g;
+}
+const mesh = (name, geo, mat, [x, y, z] = [0, 0, 0]) => { const m = new THREE.Mesh(geo, mat); m.name = name; m.position.set(x, y, z); m.castShadow = m.receiveShadow = true; return m; };
+const box = (name, w, h, d, mat, p) => mesh(name, new THREE.BoxGeometry(w, h, d), mat, p);
+
+const model = new THREE.Group(); model.name = 'smart_glasses_module_assembly';
+
+// ── Context: fixed frame front + folding temple ──
+const frame = new THREE.Group(); frame.name = 'frame_context';
+frame.add(box('hinge_endpiece', mm(8), mm(8), mm(6), M.acetate, [mm(48), 0, mm(-1)]));
+const rim = rrShape(mm(54), mm(40), mm(13), mm(28), mm(1));
+rim.holes.push(rrShape(mm(46), mm(32), mm(9.5), mm(28), mm(1)));
+const rimGeo = new THREE.ExtrudeGeometry(rim, { depth: mm(3), bevelEnabled: true, bevelThickness: mm(0.6), bevelSize: mm(0.6), bevelSegments: 3, curveSegments: 24 });
+const rimM = mesh('frame_rim', rimGeo, M.acetate, [mm(51), 0, 0]); rimM.rotation.y = Math.PI / 2; frame.add(rimM);
+const lensGeo = new THREE.ExtrudeGeometry(rrShape(mm(47), mm(33), mm(10), mm(28), mm(1)), { depth: mm(1.6), bevelEnabled: false, curveSegments: 24 });
+const lensM = mesh('lens', lensGeo, M.lens, [mm(51.7), 0, 0]); lensM.rotation.y = Math.PI / 2; lensM.castShadow = false; frame.add(lensM);
+model.add(frame);
+const HX = mm(47), HZ = mm(-1.5);
+const fold = new THREE.Group(); fold.name = 'temple_fold_pivot'; fold.position.set(HX, 0, HZ);
+const temple = new THREE.Group(); temple.name = 'temple'; temple.position.set(-HX, 0, -HZ); fold.add(temple);
+const templeArm = mesh('temple_arm', rbox(mm(115), mm(4.5), mm(3), mm(1.5), mm(0.8)), M.acetate, [mm(-12.5), 0, 0]);
+temple.add(templeArm);
+model.add(fold);
+
+// ── Module (rides on the temple only) ──
+const mod = new THREE.Group(); mod.name = 'module';
+const explodable = [];
+const part = (obj, dz) => { obj.userData.base = obj.position.clone(); obj.userData.dz = dz; explodable.push(obj); mod.add(obj); return obj; };
+
+const shell = new THREE.Group(); shell.name = 'housing_petg';
+shell.add(mesh('housing_shell', rbox(mm(56), mm(20), mm(11), mm(6), mm(2)), M.petg, [0, 0, mm(8.5)]));
+for (const [i, cx] of [mm(-20), mm(20)].entries()) {
+  const tag = `croc_${i + 1}`, hy = mm(5.6), hz = mm(0.2);
+  shell.add(mesh(`${tag}_pad_fixed`, rbox(mm(9), mm(6.5), mm(1.5), mm(1.6), mm(0.5)), M.rubber, [cx, mm(-0.2), mm(2.25)]));
+  shell.add(box(`${tag}_hinge_bracket`, mm(9), mm(3), mm(3.2), M.petg, [cx, hy, mm(1.5)]));
+  shell.add(mesh(`${tag}_hinge_barrel`, new THREE.CylinderGeometry(mm(1.6), mm(1.6), mm(9), 24).rotateZ(Math.PI / 2), M.petg, [cx, hy, hz]));
+  shell.add(mesh(`${tag}_hinge_pin`, new THREE.CylinderGeometry(mm(0.6), mm(0.6), mm(10), 16).rotateZ(Math.PI / 2), M.metal, [cx, hy, hz]));
+  for (let k = 0; k < 4; k++) shell.add(mesh(`${tag}_spring_${k}`, new THREE.TorusGeometry(mm(1.95), mm(0.28), 8, 24).rotateY(Math.PI / 2), M.metal, [cx - mm(1.5) + k * mm(1), hy, hz]));
+  const jaw = new THREE.Group(); jaw.name = `${tag}_jaw`;
+  jaw.add(mesh(`${tag}_pad_jaw`, rbox(mm(9), mm(6.5), mm(1.2), mm(1.6), mm(0.4)), M.rubber, [cx, mm(-0.2), mm(-2.1)]));
+  jaw.add(mesh(`${tag}_jaw_plate`, rbox(mm(9), mm(10.5), mm(1.3), mm(2), mm(0.5)), M.petg, [cx, mm(0.3), mm(-3.35)]));
+  jaw.add(box(`${tag}_jaw_arm`, mm(7), mm(2.2), mm(3.6), M.petg, [cx, hy, mm(-1.7)]));
+  const lever = mesh(`${tag}_lever`, rbox(mm(9), mm(6.5), mm(1.3), mm(2), mm(0.5)), M.petg, [cx, mm(9.6), mm(-4.1)]);
+  lever.rotation.x = -0.35; jaw.add(lever);
+  for (let r = 0; r < 3; r++) jaw.add(box(`${tag}_lever_grip_${r}`, mm(7), mm(0.6), mm(0.5), M.rubber, [cx, mm(8.6 + r * 1.6), mm(-4.55 - r * 0.55)]));
+  shell.add(jaw);
+}
+shell.add(mesh('button_bezel', new THREE.TorusGeometry(mm(3.6), mm(0.5), 12, 48), M.petg, [mm(14), mm(-3.5), mm(14.05)]));
+shell.add(mesh('button_hole', new THREE.CylinderGeometry(mm(3.1), mm(3.1), mm(0.2), 40).rotateX(Math.PI / 2), M.oled, [mm(14), mm(-3.5), mm(14.02)]));
+for (const [dx, dy] of [[0, 0], [-1.6, 0], [1.6, 0], [0, -1.6], [0, 1.6]]) shell.add(mesh('mic_sound_hole', new THREE.CylinderGeometry(mm(0.5), mm(0.5), mm(0.2), 16).rotateX(Math.PI / 2), M.oled, [mm(-17 + dx), mm(dy), mm(14.02)]));
+shell.add(mesh('switch_slot', rbox(mm(9), mm(0.6), mm(3.4), mm(1.2), mm(0.2)), M.oled, [mm(3), mm(10.05), mm(9)]));
+shell.add(mesh('usb_opening', rbox(mm(0.6), mm(10.4), mm(4.4), mm(1.6), mm(0.2)), M.oled, [mm(-28.1), 0, mm(7.8)]));
+part(shell, mm(28));
+
+// XIAO ESP32-C6 at the rear (USB-C in rear end face)
+const xiao = new THREE.Group(); xiao.name = 'xiao_esp32c6';
+xiao.position.set(mm(-16.5), 0, mm(6.2));
+xiao.add(box('xiao_pcb', mm(21), mm(17.5), mm(1.2), M.pcb));
+xiao.add(box('esp32c6_shield_can', mm(10), mm(10), mm(2), M.metal, [mm(2), mm(1.5), mm(1.6)]));
+xiao.add(box('usb_c_receptacle', mm(7.4), mm(9), mm(3.2), M.metal, [mm(-7.8), 0, mm(2.2)]));
+xiao.add(box('antenna_chip', mm(3), mm(1.6), mm(1), M.oled, [mm(7.5), mm(-6), mm(1.1)]));
+for (let k = 0; k < 7; k++) {
+  xiao.add(box(`castellation_l${k}`, mm(1.3), mm(0.8), mm(1.25), M.metal, [mm(-7.6 + k * 2.54), mm(8.4), 0]));
+  xiao.add(box(`castellation_r${k}`, mm(1.3), mm(0.8), mm(1.25), M.metal, [mm(-7.6 + k * 2.54), mm(-8.4), 0]));
+}
+part(xiao, mm(14));
+
+// LiPo 401030 in line, ahead of the XIAO
+const lipo = new THREE.Group(); lipo.name = 'lipo_401030_protected';
+lipo.position.set(mm(11), mm(-3.5), mm(6.4));
+lipo.add(mesh('lipo_cell', rbox(mm(27), mm(10), mm(4), mm(1.5), mm(1)), M.battery, [mm(1.5), 0, 0]));
+lipo.add(box('lipo_protection_pcb', mm(3), mm(8), mm(3.2), M.touch, [mm(-13.5), 0, 0]));
+lipo.add(box('lipo_lead_red', mm(1.6), mm(0.8), mm(0.8), M.touch, [mm(-15.8), mm(1.5), 0]));
+lipo.add(box('lipo_lead_black', mm(1.6), mm(0.8), mm(0.8), M.oled, [mm(-15.8), mm(-1.5), 0]));
+part(lipo, mm(12));
+
+// SS-12D00, lever exits top face
+const sw = new THREE.Group(); sw.name = 'ss12d00_switch';
+sw.position.set(mm(3), mm(7), mm(9));
+sw.add(box('switch_body', mm(8.6), mm(3.5), mm(3.7), M.metal));
+sw.add(box('switch_lever', mm(1.5), mm(2.2), mm(1.5), M.oled, [mm(0.9), mm(2.6), 0]));
+for (let k = 0; k < 3; k++) sw.add(box(`switch_pin_${k}`, mm(0.6), mm(2.5), mm(0.4), M.metal, [mm(-2.5 + k * 2.5), mm(-2.9), 0]));
+part(sw, mm(10));
+
+// INMP441 I2S MEMS mic: round PCB over the XIAO, port up through the housing top
+const gold = new THREE.MeshStandardMaterial({ name: 'gold_pads', color: 0xd9a63a, roughness: 0.35, metalness: 0.6 });
+const mic = new THREE.Group(); mic.name = 'inmp441_mic_i2s';
+mic.position.set(mm(-17), 0, mm(12.2));
+mic.add(mesh('inmp441_pcb', new THREE.CylinderGeometry(mm(6.9), mm(6.9), mm(1.2), 48).rotateX(Math.PI / 2), M.oled));
+mic.add(mesh('inmp441_ring', new THREE.TorusGeometry(mm(6.2), mm(0.35), 8, 48), gold, [0, 0, mm(0.6)]));
+mic.add(mesh('inmp441_port_pad', new THREE.TorusGeometry(mm(0.9), mm(0.35), 8, 24), gold, [0, 0, mm(0.6)]));
+mic.add(box('inmp441_chip', mm(4), mm(3), mm(1), M.metal, [0, 0, mm(-1.1)]));
+for (let i = 0; i < 6; i++) { const a = Math.PI * (0.2 + i * 0.12) + Math.PI; const px = Math.cos(a) * mm(4.6), py = Math.sin(a) * mm(4.6);
+  mic.add(mesh('inmp441_pin', new THREE.CylinderGeometry(mm(0.3), mm(0.3), mm(3.2), 8).rotateX(Math.PI / 2), M.metal, [px, py, mm(-2.2)])); }
+part(mic, mm(36));
+
+// 6×6 tactile switch stacked over the battery
+const tact = new THREE.Group(); tact.name = 'tact_switch_6x6';
+tact.position.set(mm(14), mm(-3.5), mm(9.2));
+tact.add(box('tact_carrier_pcb', mm(8), mm(8), mm(0.8), M.pcb));
+tact.add(box('tact_body', mm(6), mm(6), mm(3.5), M.oled, [0, 0, mm(2.15)]));
+tact.add(box('tact_top_plate', mm(6), mm(6), mm(0.2), M.metal, [0, 0, mm(4)]));
+tact.add(mesh('tact_plunger', new THREE.CylinderGeometry(mm(1.75), mm(1.75), mm(1.2), 24).rotateX(Math.PI / 2), M.oled, [0, 0, mm(4.7)]));
+for (const [px, py] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) tact.add(box('tact_leg', mm(0.7), mm(1.2), mm(1.2), M.metal, [px * mm(3.3), py * mm(2.25), mm(0.6)]));
+const capParts = [];
+const cap = mesh('button_cap', new THREE.CylinderGeometry(mm(2.8), mm(2.8), mm(1.6), 40).rotateX(Math.PI / 2), M.touch, [0, 0, mm(5.1)]);
+tact.add(cap); capParts.push(cap);
+const dome = mesh('button_cap_dome', (() => { const g = new THREE.SphereGeometry(mm(2.8), 40, 12, 0, Math.PI * 2, 0, Math.PI / 2).rotateX(Math.PI / 2); g.scale(1, 1, 0.25); return g; })(), M.touch, [0, 0, mm(5.9)]);
+tact.add(dome); capParts.push(dome);
+for (const c of capParts) c.userData.z0 = c.position.z;
+part(tact, mm(20));
+
+// Flip-up display boom. Pivot axis along z on the housing's top-front.
+// Optics sit in FRONT of the spectacle lens (x≈56–68). OLED (z≈17) → lens f20 (z≈−2) → 50:50 cube (z≈−9); splitter turns light to −x, through the spectacle lens to the eye.
+const boom = new THREE.Group(); boom.name = 'display_boom_flex_hose';
+boom.position.set(mm(24), mm(11), mm(9));
+const PX = mm(38);
+// Flexible ball-joint hose 1/4" (coolant-line type): threaded into the housing top, bends to aim the pod
+const hoseM = new THREE.MeshStandardMaterial({ name: 'hose_graphite', color: 0x363840, roughness: 0.45, metalness: 0.05 });
+const fitM = new THREE.MeshStandardMaterial({ name: 'fitting_orange', color: 0xc8662e, roughness: 0.5, metalness: 0.05 });
+const hoseCurve = new THREE.CatmullRomCurve3([[6, -11, -0.5], [11, -11, -0.4], [18, -8.5, -0.2], [24, -2.5, 0], [28.5, 0.6, 0], [31, 1, 0]].map(p => new THREE.Vector3(mm(p[0]), mm(p[1]), mm(p[2]))));
+const hose = new THREE.Group(); hose.name = 'flex_hose_ball_joint_1_4';
+const up = new THREE.Vector3(0, 1, 0), segN = Math.round(hoseCurve.getLength() / mm(4.2));
+for (let i = 1; i < segN; i++) {
+  const t = i / segN, p = hoseCurve.getPointAt(t), q = new THREE.Quaternion().setFromUnitVectors(up, hoseCurve.getTangentAt(t));
+  const s = new THREE.Group(); s.position.copy(p); s.quaternion.copy(q);
+  s.add(mesh('hose_ball', new THREE.SphereGeometry(mm(2.3), 20, 14), hoseM, [0, mm(-0.6), 0]));
+  s.add(mesh('hose_cone', new THREE.CylinderGeometry(mm(1.5), mm(2.9), mm(2.6), 20), hoseM, [0, mm(1.2), 0]));
+  hose.add(s);
+}
+const fit0 = new THREE.Group(); fit0.position.copy(hoseCurve.getPointAt(0)); fit0.quaternion.setFromUnitVectors(up, hoseCurve.getTangentAt(0));
+fit0.add(mesh('hose_base_hex', new THREE.CylinderGeometry(mm(3.4), mm(3.4), mm(2.6), 6), fitM, [0, mm(0.6), 0]));
+fit0.add(mesh('hose_base_thread_1_4', new THREE.CylinderGeometry(mm(2.4), mm(2.4), mm(3), 20), fitM, [0, mm(-1.6), 0]));
+const fit1 = new THREE.Group(); fit1.position.copy(hoseCurve.getPointAt(1)); fit1.quaternion.setFromUnitVectors(up, hoseCurve.getTangentAt(1));
+fit1.add(mesh('hose_end_socket', new THREE.CylinderGeometry(mm(2.8), mm(2.4), mm(2.4), 20), fitM));
+hose.add(fit0, fit1); boom.add(hose);
+boom.add(mesh('hose_boss_on_housing', new THREE.CylinderGeometry(mm(3.8), mm(4.2), mm(1.8), 32).rotateZ(-Math.PI / 2), M.petg, [mm(4.8), mm(-11), mm(-0.5)]));
+boom.add(mesh('display_pod', rbox(mm(12), mm(12), mm(22), mm(3), mm(1.2)), M.petg, [PX, 0, mm(-1)]));
+boom.add(box('oled_i2c_pcb', mm(11), mm(11), mm(0.8), M.pcb, [PX, 0, mm(9.2)]));
+boom.add(box('oled_glass', mm(12), mm(7.2), mm(0.6), M.oled, [PX, mm(-0.5), mm(8.5)]));
+boom.add(box('oled_active_area', mm(9.7), mm(5.4), mm(0.2), M.screen, [PX, mm(-0.5), mm(8.15)]));
+['gnd', 'vcc', 'scl', 'sda'].forEach((n, k) => boom.add(mesh(`oled_pin_${n}`, new THREE.CylinderGeometry(mm(0.35), mm(0.35), mm(2.5), 12), M.metal, [PX - mm(3.81) + k * mm(2.54), mm(6.2), mm(9.2)])));
+const lensG = new THREE.SphereGeometry(mm(5), 40, 16); lensG.scale(1, 1, 0.22);
+const collim = mesh('collimating_lens_f20_d10', lensG, M.prism, [PX, 0, mm(-11)]); collim.castShadow = false; boom.add(collim);
+boom.add(mesh('lens_retainer_ring', new THREE.TorusGeometry(mm(5.2), mm(0.5), 12, 48), M.petg, [PX, 0, mm(-11)]));
+boom.add(box('cube_holder_top', mm(10), mm(1), mm(11), M.petg, [PX, mm(5.5), mm(-14)]));
+const prism = mesh('beam_splitter_cube_10mm_50_50', new THREE.BoxGeometry(mm(10), mm(10), mm(10)), M.prism, [PX, 0, mm(-18)]);
+prism.castShadow = false; boom.add(prism);
+const mirror = box('beam_splitter_film', mm(14), mm(9.8), mm(0.15), M.metal, [PX, 0, mm(-18)]);
+mirror.rotation.y = -Math.PI / 4; boom.add(mirror);
+mod.add(boom);
+
+temple.add(mod);
+const bb = new THREE.Box3().setFromObject(model);
+model.position.y = -bb.min.y;
+stage.setObject(model);
+
+// ── Demo: notification → press → dismissed ──
+const scr = document.createElement('canvas'); scr.width = 72; scr.height = 40;
+const sctx = scr.getContext('2d');
+const tex = new THREE.CanvasTexture(scr); tex.colorSpace = THREE.SRGBColorSpace; tex.magFilter = THREE.NearestFilter;
+Object.assign(M.screen, { map: tex, emissiveMap: tex, color: new THREE.Color(0xffffff), emissive: new THREE.Color(0xffffff), emissiveIntensity: 1 });
+M.screen.needsUpdate = true;
+const view = document.getElementById('oledView').getContext('2d');
+const capEl = document.getElementById('demoCap'), steps = [...document.querySelectorAll('.demo-steps span')];
+const INK = '#bfe6ff', LOOP = 7.5;
+const ease = x => x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x);
+let povMode = 'notify';
+function drawNav(t) {
+  const p = t / LOOP, dist = Math.max(0, Math.round((1 - p / 0.85) * 18) * 10), now = dist === 0;
+  sctx.fillStyle = '#000'; sctx.fillRect(0, 0, 72, 40);
+  sctx.globalAlpha = now ? (Math.sin(t * 12) > -0.3 ? 1 : 0.25) : 1;
+  sctx.strokeStyle = INK; sctx.fillStyle = INK; sctx.lineWidth = 5; sctx.lineJoin = 'round'; sctx.lineCap = 'round';
+  sctx.beginPath(); sctx.moveTo(9, 37); sctx.lineTo(9, 17); sctx.quadraticCurveTo(9, 12, 14, 12); sctx.lineTo(19, 12); sctx.stroke();
+  sctx.beginPath(); sctx.moveTo(18, 3); sctx.lineTo(29, 12); sctx.lineTo(18, 21); sctx.closePath(); sctx.fill();
+  sctx.globalAlpha = 1; sctx.textBaseline = 'top'; sctx.textAlign = 'left';
+  if (now) { sctx.font = 'bold 13px monospace'; sctx.fillText('Сей-', 34, 4); sctx.fillText('час', 34, 18); }
+  else { sctx.font = 'bold 19px monospace'; sctx.fillText(String(dist), 33, 1); sctx.font = 'bold 11px monospace'; sctx.fillText('метр', 34, 22); }
+  sctx.fillRect(34, 36, 36 * (1 - Math.min(1, p / 0.85)), 3);
+  present();
+  document.getElementById('povWorld').style.transform = 'scale(' + (1 + 0.06 * Math.min(1, p / 0.85)) + ')';
+}
+function present() {
+  tex.needsUpdate = true;
+  view.drawImage(scr, 0, 0);
+  if (!povEl.hidden) {
+    const d = sctx.getImageData(0, 0, 72, 40), p = d.data;
+    for (let i = 0; i < p.length; i += 4) { const m = Math.max(p[i], p[i + 1], p[i + 2]); p[i + 3] = Math.min(255, m * 1.15); }
+    hud.putImageData(d, 0, 0);
+  }
+}
+function drawScreen(slide, alpha, pressed) {
+  sctx.fillStyle = '#000'; sctx.fillRect(0, 0, 72, 40);
+  sctx.fillStyle = INK; sctx.textBaseline = 'top';
+  sctx.globalAlpha = 1 - alpha * 0.85;
+  sctx.font = 'bold 23px monospace'; sctx.textAlign = 'center'; sctx.fillText('12:40', 36, 2);
+  sctx.font = 'bold 10px monospace'; sctx.fillText('83%', 36, 28);
+  sctx.globalAlpha = alpha; sctx.textAlign = 'left';
+  const y = -40 + 40 * slide;
+  sctx.fillStyle = '#000'; sctx.fillRect(0, y, 72, 40);
+  sctx.fillStyle = INK; sctx.fillRect(0, y, 72, 13);
+  sctx.fillStyle = '#000'; sctx.font = 'bold 12px monospace'; sctx.fillText('Аня', 2, y + 1);
+  if (pressed) { sctx.fillText('✓', 62, y + 1); }
+  sctx.fillStyle = INK; sctx.font = 'bold 12px monospace';
+  sctx.fillText('Буду через', 0, y + 15); sctx.fillText('5 мин :)', 0, y + 27);
+  sctx.globalAlpha = 1;
+  present();
+}
+const povEl = document.getElementById('pov'), hud = document.getElementById('hud').getContext('2d'), bPov = document.getElementById('povBtn');
+function placePov() { const r = stage.getBoundingClientRect(), pad = 16; Object.assign(povEl.style, { left: r.left + pad + 'px', top: r.top + pad + 'px', width: r.width - pad * 2 + 'px', height: r.height - pad * 2 + 'px' }); }
+bPov.onclick = () => setPov(povEl.hidden);
+document.getElementById('povClose').onclick = () => setPov(false);
+const povCapText = document.querySelector('.pov-cap span:last-child'), NOTIFY_CAP = povCapText.textContent;
+document.querySelectorAll('.pov-modes .btn').forEach(b => b.onclick = () => {
+  povMode = b.dataset.mode;
+  document.querySelectorAll('.pov-modes .btn').forEach(x => x.setAttribute('aria-pressed', x === b));
+  povCapText.textContent = povMode === 'nav' ? 'Поворот направо через 180 метров. Стрелка и расстояние видны краем глаза, на телефон смотреть не нужно. Перед поворотом стрелка мигает.' : NOTIFY_CAP;
+  if (povMode !== 'nav') document.getElementById('povWorld').style.transform = '';
+});
+function setPov(on) { povEl.hidden = !on; bPov.setAttribute('aria-pressed', on); if (on) placePov(); else if (povMode === 'nav') document.querySelector('.pov-modes [data-mode=notify]').click(); }
+addEventListener('resize', () => { if (!povEl.hidden) placePov(); });
+const CAPS = ['Телефон присылает уведомление по Bluetooth — оно выезжает на экран.', 'Пользователь нажимает кнопку на корпусе.', 'Уведомление скрывается, на экране снова часы.'];
+let playing = true, clock = Number(localStorage.getItem('sgm_demo_t')) || 0, last = performance.now(), lastStep = -1;
+function demoFrame(now) {
+  const dt = Math.min((now - last) / 1000, 0.1); last = now;
+  if (playing) clock = (clock + dt) % LOOP;
+  const tt = clock;
+  let slide, alpha = 1, press = 0, step;
+  if (tt < 1) { slide = 0; alpha = 0; step = 0; }
+  else if (tt < 1.5) { slide = ease((tt - 1) / 0.5); step = 0; }
+  else if (tt < 3.6) { slide = 1; step = 0; }
+  else if (tt < 4.3) { slide = 1; step = 1; press = tt < 3.9 ? ease((tt - 3.6) / 0.3) : ease(1 - (tt - 3.9) / 0.4); }
+  else if (tt < 4.8) { slide = 1; alpha = 1 - ease((tt - 4.3) / 0.5); step = 2; }
+  else { slide = 0; alpha = 0; step = 2; }
+  if (povMode === 'nav' && !povEl.hidden) drawNav(tt); else drawScreen(slide, alpha, tt >= 3.8);
+  for (const c of capParts) c.position.z = c.userData.z0 - mm(0.7) * press;
+  M.touch.emissive.setHex(0xc67139); M.touch.emissiveIntensity = press * 0.5;
+  if (povMode === 'nav' && !povEl.hidden) { if (lastStep !== 'nav') { capEl.textContent = 'Режим навигатора: стрелка поворота и расстояние до него.'; lastStep = 'nav'; } }
+  else if (step !== lastStep) { capEl.textContent = CAPS[step]; steps.forEach((s, i) => s.classList.toggle('on', i <= step)); lastStep = step; }
+  if (playing) localStorage.setItem('sgm_demo_t', clock.toFixed(2));
+  requestAnimationFrame(demoFrame);
+}
+requestAnimationFrame(demoFrame);
+const bPlay = document.getElementById('play');
+bPlay.onclick = () => { playing = !playing; bPlay.textContent = playing ? 'Пауза' : 'Демо'; bPlay.setAttribute('aria-pressed', playing); };
+
+// ── Controls ──
+const bXray = document.getElementById('xray'), bExp = document.getElementById('explode'), bFrame = document.getElementById('frame');
+let exploded = false, t = 0;
+bXray.onclick = () => {
+  const on = bXray.getAttribute('aria-pressed') !== 'true';
+  bXray.setAttribute('aria-pressed', on);
+  M.petg.opacity = on ? 0.22 : 1; M.petg.depthWrite = !on; M.petg.needsUpdate = true;
+};
+bExp.onclick = () => { exploded = !exploded; bExp.setAttribute('aria-pressed', exploded); tick(); };
+bFrame.onclick = () => { frame.visible = templeArm.visible = !frame.visible; bFrame.setAttribute('aria-pressed', frame.visible); };
+const bFold = document.getElementById('fold');
+let folded = false, ft = 0;
+bFold.onclick = () => { folded = !folded; bFold.textContent = folded ? 'Разложить' : 'Сложить'; bFold.setAttribute('aria-pressed', folded); foldTick(); };
+function foldTick() {
+  const target = folded ? 1 : 0;
+  ft = Math.max(0, Math.min(1, ft + Math.sign(target - ft) * 0.025));
+  const k = x => { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); };
+  fold.rotation.y = -k(ft) * Math.PI / 2;
+  if (ft !== target) requestAnimationFrame(foldTick);
+}
+function tick() {
+  const target = exploded ? 1 : 0;
+  t += (target - t) * 0.15; if (Math.abs(target - t) < 0.002) t = target;
+  const e = t * t * (3 - 2 * t);
+  for (const o of explodable) o.position.set(o.userData.base.x, o.userData.base.y, o.userData.base.z + o.userData.dz * e);
+  if (t !== target) requestAnimationFrame(tick);
+}
+</script>
+</body>
+</html>
