@@ -49,3 +49,4 @@ __pycache__/
 *.wav
 .venv
 .env
+coverage/
