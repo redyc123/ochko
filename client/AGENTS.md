@@ -10,13 +10,17 @@ Expo ships breaking changes every SDK release. APIs you remember are likely rena
 
 ## Commands
 
-Use `bunx` instead of `npx` if the project uses bun (`bun.lock` present).
+This project uses **npm** (`package-lock.json`; no `bun.lock`). Use the scripts in `package.json`:
 
 ```bash
-npx expo install <package>  # ALWAYS use instead of npm/yarn/pnpm/bun add — resolves SDK-compatible versions
-npx expo start              # start the dev server
-npx expo lint               # lint
-npx tsc --noEmit            # typecheck
+npm install
+npm start                   # start the dev server
+npm test                    # Jest
+npm test -- tests/nav/geo.test.ts   # one test file
+npm run typecheck           # tsc --noEmit
+npm run lint                # eslint .
+npm run web                 # browser UI (no BLE/map)
+npx expo install <package>  # ALWAYS for native deps — resolves SDK-compatible versions
 npx expo-doctor             # diagnose dependency and config issues
 npx expo install --fix      # fix incompatible package versions
 ```
@@ -25,17 +29,15 @@ Run lint and typecheck before declaring any task done.
 
 ## Navigation & Routing
 
-- Use **Expo Router** for all navigation. Routes live in `src/app/` — every file there is a screen, `_layout.tsx` files define navigators. Keep non-route code (components, hooks, utils) outside `src/app/`.
-- Import `Link`, `router`, and `useLocalSearchParams` from `expo-router`.
-- Docs: https://docs.expo.dev/router/introduction.md
+- The app has **no router**: `src/screens/RootNavigator.tsx` renders a custom bottom-tab shell (`Карта / Ассистент / Очки`) that keeps all three screens mounted and toggles them with `display`. `src/screens/tabContext.ts` exports `useRootTab()` for cross-screen navigation. Do not add `expo-router`, `src/app/`, or React Navigation.
+- The UI kit lives in `src/ui/` (theme tokens in `src/ui/theme.ts`, icons in `src/ui/Icon.tsx`). Screens use only these components, not ad-hoc inline styles.
 
-## Building with EAS
+## Native builds
 
-Use EAS to build, sign, and submit the app in the cloud (`eas build`, `eas submit`) and to ship over-the-air updates (`eas update`) — no local Xcode or Android Studio required. Run EAS CLI as `bunx eas-cli <command>` in Bun projects, or `npx eas-cli@latest <command>` otherwise; substitute that for bare `eas` in docs examples.
-Docs: https://docs.expo.dev/eas/index.md
+- There is no `eas.json` in this repo. Build locally with `npx expo prebuild` and `npm run ios` / `npm run android`.
+- `ios/` is checked-in prebuild output; `android/` is not generated yet. Never hand-edit generated native folders — configure `app.json` and config plugins.
 
 ## Rules
 
-- If `ios/` and `android/` directories do not exist, they are generated (Continuous Native Generation). Never create or edit them by hand — configure native behavior in `app.json` and config plugins.
-- Expo Go only includes its bundled native modules. After adding a library with native code, the app needs a development build: `npx expo run:ios|android` locally, or `eas build --profile development`.
+- Expo Go only includes its bundled native modules. This app needs a dev client (`expo-dev-client`): after adding a native library, rebuild with `npx expo run:ios|android`.
 - Prefer recommended Expo modules over third-party libraries, and check your available skills before adding dependencies. Docs: https://docs.expo.dev/versions/latest/index.md

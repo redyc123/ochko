@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <title>V3 · Ассистент</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="screen">
+      <div class="status">
+        <span>9:41</span>
+        <span class="status-icons">
+          <svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor">
+            <rect x="0" y="7" width="3" height="4" rx="1" />
+            <rect x="4.5" y="5" width="3" height="6" rx="1" />
+            <rect x="9" y="2.5" width="3" height="8.5" rx="1" />
+            <rect x="13.5" y="0" width="3" height="11" rx="1" />
+          </svg>
+          <svg width="16" height="11" viewBox="0 0 16 11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+            <path d="M1.5 4.2a9.5 9.5 0 0 1 13 0" />
+            <path d="M4 6.7a6 6 0 0 1 8 0" />
+            <path d="M6.6 9.1a2.5 2.5 0 0 1 2.8 0" />
+          </svg>
+          <svg width="25" height="12" viewBox="0 0 25 12" fill="none">
+            <rect x="0.5" y="0.5" width="21" height="11" rx="3" stroke="currentColor" opacity=".35" />
+            <rect x="2" y="2" width="16" height="8" rx="2" fill="currentColor" />
+            <path d="M23 4v4a2 2 0 0 0 0-4z" fill="currentColor" opacity=".35" />
+          </svg>
+        </span>
+      </div>
+
+      <div class="assistant-header">
+        <div class="back">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M15 5l-7 7 7 7" />
+          </svg>
+        </div>
+        <div class="header-title">
+          <h1>Ассистент</h1>
+          <p>Спросите голосом или текстом</p>
+        </div>
+        <div class="mini-glasses">
+          <svg class="pixel" viewBox="0 0 72 40" preserveAspectRatio="xMidYMid meet">
+            <rect width="72" height="40" rx="3" fill="#10100e" />
+            <path d="M38 33 V23 Q38 17 32 17 H20" stroke="#9be8c8" stroke-width="4" fill="none" stroke-linecap="square" />
+            <path d="M26 11 L18 17 L26 23" stroke="#9be8c8" stroke-width="4" fill="none" stroke-linecap="square" />
+            <text x="43" y="22" fill="#9be8c8" font-family="monospace" font-size="10" font-weight="700">850</text>
+          </svg>
+        </div>
+      </div>
+
+      <div class="chat">
+        <div style="text-align: center; font-size: 9px; color: var(--soft); letter-spacing: 1.2px; text-transform: uppercase">
+          Сегодня
+        </div>
+
+        <div class="bubble user">Построй маршрут до дома</div>
+
+        <div class="bubble bot">
+          Готово. 12 минут пешком.
+          <div class="route-mini">
+            <div class="line"></div>
+            <div class="txt">
+              <b>Домой</b>
+              <span>1.4 км · 12 мин · пешком</span>
+            </div>
+            <div class="go">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M5 12h14" />
+                <path d="M13 6l6 6-6 6" />
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        <div class="bubble user" style="max-width: 62%">Спасибо</div>
+
+        <div class="bubble bot" style="max-width: 74%">
+          Включить ведение по маршруту?
+        </div>
+      </div>
+
+      <div class="bottom-panel">
+        <div class="suggestions">
+          <span class="suggestion">Домой</span>
+          <span class="suggestion">Кафе рядом</span>
+          <span class="suggestion">Позвонить</span>
+        </div>
+
+        <div class="mic-wrap">
+          <div class="mic-orb">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <rect x="9" y="3" width="6" height="11" rx="3" />
+              <path d="M5 11a7 7 0 0 0 14 0" />
+              <path d="M12 18v3" />
+            </svg>
+          </div>
+          <span class="mic-hint">Нажмите и говорите</span>
+        </div>
+
+        <div class="composer">
+          <span class="ph">Спросите что-нибудь</span>
+          <div class="send">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M5 12h14" />
+              <path d="M13 6l6 6-6 6" />
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <div class="tabs">
+        <div class="tab">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">
+            <path d="M9 4L3 6.5v14L9 18l6 2.5 6-2.5v-14L15 6.5 9 4z" />
+            <path d="M9 4v14M15 6.5v14" />
+          </svg>
+          <span>Карта</span>
+        </div>
+        <div class="tab active">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">
+            <path d="M21 11.5a8 8 0 0 1-8 8H7l-4 3v-7a8 8 0 1 1 18-4z" />
+          </svg>
+          <span>Ассистент</span>
+        </div>
+        <div class="tab">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">
+            <rect x="2" y="8" width="8" height="6" rx="2" />
+            <rect x="14" y="8" width="8" height="6" rx="2" />
+            <path d="M10 10.5h4" />
+            <path d="M2 10L1 8M22 10l1-2" />
+          </svg>
+          <span>Очки</span>
+        </div>
+      </div>
+
+      <div class="home-indicator"></div>
+    </div>
+  </body>
+</html>

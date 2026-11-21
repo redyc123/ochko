@@ -1,0 +1,942 @@
+:root {
+  --bg: #f3eadf;
+  --surface: #fff9f2;
+  --surface-2: #fbf3ea;
+  --ink: #2e211a;
+  --muted: #8a7466;
+  --soft: #b09a88;
+  --line: #e2d2c2;
+  --terracotta: #c4623f;
+  --terracotta-dark: #a94f31;
+  --terracotta-soft: rgba(196, 98, 63, 0.12);
+  --sage: #8a9a7b;
+  --sand: #e8d8c6;
+  --shadow: 0 20px 50px rgba(70, 42, 28, 0.12);
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-font-smoothing: antialiased;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  width: 390px;
+  height: 844px;
+  overflow: hidden;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial,
+    sans-serif;
+}
+
+.serif {
+  font-family: "New York", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+}
+
+.screen {
+  position: relative;
+  width: 390px;
+  height: 844px;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.status {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 48px;
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 14px;
+  font-weight: 650;
+  letter-spacing: -0.2px;
+  z-index: 30;
+  color: var(--ink);
+}
+
+.status-icons {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.status svg {
+  display: block;
+}
+
+.home-indicator {
+  position: absolute;
+  left: 50%;
+  bottom: 8px;
+  width: 134px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--ink);
+  transform: translateX(-50%);
+  opacity: 0.9;
+  z-index: 40;
+}
+
+.tabs {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 84px;
+  padding: 8px 18px 20px;
+  display: flex;
+  background: var(--surface-2);
+  border-top: 1px solid var(--line);
+  z-index: 25;
+}
+
+.tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  color: var(--soft);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+
+.tab svg {
+  width: 22px;
+  height: 22px;
+}
+
+.tab.active {
+  color: var(--terracotta);
+}
+
+/* ---------- navigation ---------- */
+
+.map {
+  position: absolute;
+  inset: 0;
+  width: 390px;
+  height: 844px;
+  z-index: 0;
+}
+
+.greeting {
+  position: absolute;
+  top: 54px;
+  left: 20px;
+  right: 20px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  z-index: 20;
+}
+
+.greeting h1 {
+  margin: 0;
+  font-family: "New York", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  font-size: 31px;
+  line-height: 1;
+  letter-spacing: -0.8px;
+  font-weight: 600;
+}
+
+.greeting p {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: var(--terracotta);
+  color: #fff7ee;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 10px 24px rgba(196, 98, 63, 0.25);
+  flex: none;
+}
+
+.avatar svg {
+  width: 22px;
+  height: 22px;
+}
+
+.search-card {
+  position: absolute;
+  top: 132px;
+  left: 16px;
+  right: 16px;
+  height: 58px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  box-shadow: var(--shadow);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 9px 0 17px;
+  z-index: 20;
+}
+
+.search-card .search-icon {
+  width: 20px;
+  height: 20px;
+  color: var(--terracotta);
+  flex: none;
+}
+
+.search-card .placeholder {
+  flex: 1;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.mic-chip {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--sand);
+  color: var(--terracotta-dark);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+
+.mic-chip svg {
+  width: 19px;
+  height: 19px;
+}
+
+.map-chips {
+  position: absolute;
+  top: 202px;
+  left: 16px;
+  display: flex;
+  gap: 8px;
+  z-index: 20;
+}
+
+.chip {
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: rgba(255, 249, 242, 0.9);
+  border: 1px solid var(--line);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--sage);
+  box-shadow: 0 0 0 3px rgba(138, 154, 123, 0.16);
+}
+
+.chip svg {
+  width: 14px;
+  height: 14px;
+  color: var(--muted);
+}
+
+.polaroid {
+  position: absolute;
+  right: 14px;
+  bottom: 318px;
+  width: 120px;
+  padding: 8px 8px 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 18px 38px rgba(70, 42, 28, 0.18);
+  transform: rotate(-3deg);
+  z-index: 15;
+}
+
+.polaroid .pixel {
+  display: block;
+  width: 102px;
+  height: 57px;
+  border-radius: 6px;
+  background: #10100e;
+}
+
+.polaroid .cap {
+  margin-top: 6px;
+  text-align: center;
+  font-size: 7px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--soft);
+}
+
+.sheet {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 326px;
+  background: var(--surface);
+  border-radius: 32px 32px 0 0;
+  box-shadow: 0 -18px 50px rgba(70, 42, 28, 0.14);
+  padding: 10px 20px 0;
+  z-index: 20;
+}
+
+.sheet .handle {
+  width: 36px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--sand);
+  margin: 0 auto 12px;
+}
+
+.big-stats {
+  display: flex;
+  gap: 28px;
+  align-items: flex-end;
+}
+
+.big-stats .value {
+  font-family: "New York", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  font-size: 34px;
+  line-height: 1;
+  letter-spacing: -0.8px;
+}
+
+.big-stats .label {
+  margin-top: 3px;
+  font-size: 9px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--soft);
+}
+
+.maneuver-line {
+  margin-top: 13px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.maneuver-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: var(--terracotta-soft);
+  color: var(--terracotta);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+
+.maneuver-icon svg {
+  width: 26px;
+  height: 26px;
+}
+
+.maneuver-line .m-distance {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+}
+
+.maneuver-line .m-street {
+  margin-top: 1px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.primary {
+  width: 100%;
+  height: 54px;
+  margin-top: 14px;
+  border: 0;
+  border-radius: 16px;
+  background: var(--terracotta);
+  color: #fff7ee;
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: 0.1px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  font-family: inherit;
+  box-shadow: 0 14px 30px rgba(196, 98, 63, 0.25);
+}
+
+.primary svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* ---------- assistant ---------- */
+
+.assistant-header {
+  position: absolute;
+  top: 56px;
+  left: 20px;
+  right: 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  z-index: 20;
+}
+
+.back {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink);
+  flex: none;
+}
+
+.back svg {
+  width: 18px;
+  height: 18px;
+}
+
+.header-title {
+  flex: 1;
+}
+
+.header-title h1 {
+  margin: 0;
+  font-family: "New York", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  font-size: 32px;
+  line-height: 1;
+  letter-spacing: -0.7px;
+  font-weight: 600;
+}
+
+.header-title p {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.mini-glasses {
+  width: 56px;
+  height: 40px;
+  border-radius: 10px;
+  background: #10100e;
+  border: 1px solid var(--line);
+  padding: 5px;
+  flex: none;
+  box-shadow: 0 8px 18px rgba(70, 42, 28, 0.12);
+}
+
+.mini-glasses .pixel {
+  width: 44px;
+  height: 28px;
+  border-radius: 4px;
+}
+
+.chat {
+  position: absolute;
+  top: 136px;
+  left: 20px;
+  right: 20px;
+  bottom: 286px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  z-index: 5;
+}
+
+.bubble {
+  max-width: 84%;
+  padding: 12px 15px;
+  font-size: 14px;
+  line-height: 1.42;
+  letter-spacing: -0.1px;
+}
+
+.bubble.user {
+  align-self: flex-end;
+  background: var(--sand);
+  border-radius: 18px 18px 4px 18px;
+  color: #3a2a20;
+}
+
+.bubble.bot {
+  align-self: flex-start;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 18px 18px 18px 4px;
+  box-shadow: 0 10px 26px rgba(70, 42, 28, 0.06);
+  max-width: 88%;
+}
+
+.route-mini {
+  margin-top: 10px;
+  background: var(--bg);
+  border-radius: 12px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.route-mini .line {
+  width: 3px;
+  height: 32px;
+  border-radius: 999px;
+  background: var(--sage);
+  position: relative;
+  flex: none;
+}
+
+.route-mini .line:before,
+.route-mini .line:after {
+  content: "";
+  position: absolute;
+  left: -3px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--sage);
+}
+
+.route-mini .line:before {
+  top: -1px;
+}
+
+.route-mini .line:after {
+  bottom: -1px;
+  background: var(--terracotta);
+}
+
+.route-mini .txt {
+  flex: 1;
+}
+
+.route-mini .txt b {
+  display: block;
+  font-family: "New York", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.route-mini .txt span {
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 0.2px;
+}
+
+.route-mini .go {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--terracotta);
+  color: #fff7ee;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+
+.route-mini .go svg {
+  width: 14px;
+  height: 14px;
+}
+
+.bottom-panel {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 84px;
+  padding: 0 20px;
+  z-index: 10;
+}
+
+.suggestions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.suggestion {
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgba(255, 249, 242, 0.75);
+  display: flex;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.mic-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.mic-orb {
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  background: var(--terracotta);
+  color: #fff7ee;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 0 10px rgba(196, 98, 63, 0.08),
+    0 0 0 22px rgba(196, 98, 63, 0.03), 0 18px 32px rgba(196, 98, 63, 0.25);
+}
+
+.mic-orb svg {
+  width: 30px;
+  height: 30px;
+}
+
+.mic-hint {
+  font-size: 9px;
+  color: var(--soft);
+  letter-spacing: 0.6px;
+}
+
+.composer {
+  height: 52px;
+  border-radius: 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: 0 10px 26px rgba(70, 42, 28, 0.06);
+  display: flex;
+  align-items: center;
+  padding: 0 8px 0 16px;
+  gap: 10px;
+}
+
+.composer .ph {
+  flex: 1;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.send {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--terracotta);
+  color: #fff7ee;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+
+.send svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* ---------- device ---------- */
+
+.device-header {
+  position: absolute;
+  top: 56px;
+  left: 20px;
+  right: 20px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  z-index: 10;
+}
+
+.device-header h1 {
+  margin: 0;
+  font-family: "New York", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  font-size: 32px;
+  line-height: 1;
+  letter-spacing: -0.7px;
+  font-weight: 600;
+}
+
+.device-header p {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.icon-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink);
+}
+
+.icon-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.device-content {
+  position: absolute;
+  top: 136px;
+  left: 20px;
+  right: 20px;
+  bottom: 84px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.status-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  padding: 16px 18px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 12px 30px rgba(70, 42, 28, 0.06);
+}
+
+.status-card .info {
+  flex: 1;
+}
+
+.status-card .info b {
+  display: block;
+  font-family: "New York", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+}
+
+.status-card .info span {
+  display: block;
+  margin-top: 3px;
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 0.3px;
+}
+
+.status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--sage);
+  box-shadow: 0 0 0 5px rgba(138, 154, 123, 0.16);
+  flex: none;
+}
+
+.battery-ring {
+  position: relative;
+  width: 62px;
+  height: 62px;
+  flex: none;
+}
+
+.battery-ring svg {
+  display: block;
+}
+
+.battery-ring .val {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.battery-ring .val b {
+  font-size: 14px;
+  letter-spacing: -0.4px;
+}
+
+.battery-ring .val span {
+  font-size: 6px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+}
+
+.preview-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  padding: 14px 16px 16px;
+  box-shadow: 0 12px 30px rgba(70, 42, 28, 0.06);
+}
+
+.preview-card .top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.preview-card .top b {
+  font-family: "New York", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.preview-card .top span {
+  font-size: 8px;
+  color: var(--terracotta);
+  letter-spacing: 1px;
+  font-weight: 700;
+}
+
+.preview-card .pixel {
+  width: 100%;
+  height: 118px;
+  border-radius: 10px;
+  background: #10100e;
+}
+
+.info-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 2px 16px;
+}
+
+.info-row {
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+}
+
+.info-row:last-child {
+  border-bottom: 0;
+}
+
+.info-row .k {
+  color: var(--muted);
+}
+
+.info-row .v {
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.info-row svg {
+  width: 14px;
+  height: 14px;
+  color: var(--soft);
+}
+
+.toggle-row {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  height: 56px;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.toggle-row .label {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.switch {
+  width: 46px;
+  height: 28px;
+  border-radius: 999px;
+  background: var(--terracotta);
+  position: relative;
+  box-shadow: 0 6px 14px rgba(196, 98, 63, 0.25);
+}
+
+.switch:after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #fff7ee;
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+  margin-top: auto;
+}
+
+.btn-primary {
+  flex: 1.4;
+  height: 52px;
+  border-radius: 16px;
+  background: var(--terracotta);
+  color: #fff7ee;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 650;
+  gap: 8px;
+  box-shadow: 0 12px 26px rgba(196, 98, 63, 0.22);
+}
+
+.btn-primary svg {
+  width: 17px;
+  height: 17px;
+}
+
+.btn-outline {
+  flex: 1;
+  height: 52px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 600;
+}

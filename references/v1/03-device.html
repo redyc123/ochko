@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <title>V1 · Очки</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="screen">
+      <div class="status">
+        <span>9:41</span>
+        <span class="status-icons">
+          <svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor">
+            <rect x="0" y="7" width="3" height="4" rx="1" />
+            <rect x="4.5" y="5" width="3" height="6" rx="1" />
+            <rect x="9" y="2.5" width="3" height="8.5" rx="1" />
+            <rect x="13.5" y="0" width="3" height="11" rx="1" />
+          </svg>
+          <svg width="16" height="11" viewBox="0 0 16 11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+            <path d="M1.5 4.2a9.5 9.5 0 0 1 13 0" />
+            <path d="M4 6.7a6 6 0 0 1 8 0" />
+            <path d="M6.6 9.1a2.5 2.5 0 0 1 2.8 0" />
+          </svg>
+          <svg width="25" height="12" viewBox="0 0 25 12" fill="none">
+            <rect x="0.5" y="0.5" width="21" height="11" rx="3" stroke="currentColor" opacity=".35" />
+            <rect x="2" y="2" width="16" height="8" rx="2" fill="currentColor" />
+            <path d="M23 4v4a2 2 0 0 0 0-4z" fill="currentColor" opacity=".35" />
+          </svg>
+        </span>
+      </div>
+
+      <div class="device-header">
+        <div>
+          <h1>Очки</h1>
+          <p>OCHKO One</p>
+        </div>
+        <div class="icon-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <path d="M4 7h10M18 7h2M4 17h2M10 17h10" />
+            <circle cx="16" cy="7" r="2" />
+            <circle cx="8" cy="17" r="2" />
+          </svg>
+        </div>
+      </div>
+
+      <div class="device-content">
+        <div class="status-card">
+          <span class="status-dot"></span>
+          <div class="info">
+            <b>Подключены</b>
+            <span>BLE · стабильно</span>
+          </div>
+          <div class="battery-ring">
+            <svg width="62" height="62" viewBox="0 0 62 62">
+              <circle cx="31" cy="31" r="27" fill="none" stroke="#e7e1d5" stroke-width="6" />
+              <circle
+                cx="31"
+                cy="31"
+                r="27"
+                fill="none"
+                stroke="#0f7b5f"
+                stroke-width="6"
+                stroke-linecap="round"
+                stroke-dasharray="169.6"
+                stroke-dashoffset="33.9"
+                transform="rotate(-90 31 31)"
+              />
+            </svg>
+            <div class="val"><b>80%</b><span>заряд</span></div>
+          </div>
+        </div>
+
+        <div class="preview-card">
+          <div class="top">
+            <b>Экран очков</b>
+            <span>LIVE · V2</span>
+          </div>
+          <svg class="pixel" viewBox="0 0 72 40" preserveAspectRatio="xMidYMid meet" style="height: 122px">
+            <rect width="72" height="40" rx="2" fill="#07120e" />
+            <text x="4" y="6" fill="#5f8f7d" font-family="monospace" font-size="3.2">12 мин · 1.4 км</text>
+            <path d="M38 33 V23 Q38 17 32 17 H20" stroke="#9be8c8" stroke-width="4" fill="none" stroke-linecap="square" />
+            <path d="M26 11 L18 17 L26 23" stroke="#9be8c8" stroke-width="4" fill="none" stroke-linecap="square" stroke-linejoin="miter" />
+            <text x="43" y="22" fill="#9be8c8" font-family="monospace" font-size="10" font-weight="700">850</text>
+            <text x="63" y="30" fill="#9be8c8" font-family="monospace" font-size="4">м</text>
+            <text x="4" y="37" fill="#5f8f7d" font-family="monospace" font-size="3.2">налево на Тверскую</text>
+          </svg>
+        </div>
+
+        <div class="info-card">
+          <div class="info-row">
+            <span class="k">Прошивка</span>
+            <span class="v">
+              1.4.2
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+                <path d="M9 6l6 6-6 6" />
+              </svg>
+            </span>
+          </div>
+          <div class="info-row">
+            <span class="k">Протокол</span>
+            <span class="v">v2 FRAME</span>
+          </div>
+          <div class="info-row">
+            <span class="k">Батарея</span>
+            <span class="v">80% · 4.0 В</span>
+          </div>
+        </div>
+
+        <div class="toggle-row">
+          <span class="label">Симуляция поездки</span>
+          <span class="switch"></span>
+        </div>
+
+        <div class="actions">
+          <div class="btn-primary">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <path d="M20 11a8 8 0 1 1-2.3-5.7" />
+              <path d="M20 4v7h-7" />
+            </svg>
+            Сканировать
+          </div>
+          <div class="btn-outline">Отключить</div>
+        </div>
+      </div>
+
+      <div class="tabs">
+        <div class="tab">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">
+            <path d="M9 4L3 6.5v14L9 18l6 2.5 6-2.5v-14L15 6.5 9 4z" />
+            <path d="M9 4v14M15 6.5v14" />
+          </svg>
+          <span>Карта</span>
+        </div>
+        <div class="tab">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">
+            <path d="M21 11.5a8 8 0 0 1-8 8H7l-4 3v-7a8 8 0 1 1 18-4z" />
+          </svg>
+          <span>Ассистент</span>
+        </div>
+        <div class="tab active">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">
+            <rect x="2" y="8" width="8" height="6" rx="2" />
+            <rect x="14" y="8" width="8" height="6" rx="2" />
+            <path d="M10 10.5h4" />
+            <path d="M2 10L1 8M22 10l1-2" />
+          </svg>
+          <span>Очки</span>
+        </div>
+      </div>
+
+      <div class="home-indicator"></div>
+    </div>
+  </body>
+</html>

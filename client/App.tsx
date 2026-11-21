@@ -35,7 +35,7 @@ export default function App(): React.JSX.Element {
   return (
     <>
       <RootNavigator />
-      <StatusBar style="auto" />
+      <StatusBar style="dark" />
     </>
   );
 }

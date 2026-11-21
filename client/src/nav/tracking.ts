@@ -80,6 +80,16 @@ export function formatDistanceRu(meters: number): string {
   return `${km.toLocaleString('ru-RU', { maximumFractionDigits: 1, minimumFractionDigits: km % 1 === 0 ? 0 : 1 })} км`;
 }
 
+/** Длительность для интерфейса: «12 мин», «1 ч 5 мин». */
+export function formatDurationRu(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds <= 0) return '0 мин';
+  const totalMinutes = Math.max(1, Math.round(seconds / 60));
+  if (totalMinutes < 60) return `${totalMinutes} мин`;
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return minutes === 0 ? `${hours} ч` : `${hours} ч ${minutes} мин`;
+}
+
 export interface ProgressSample {
   distanceM: number;
   atMs: number;

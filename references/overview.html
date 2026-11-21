@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <title>OCHKO · три направления интерфейса</title>
+    <style>
+      * { box-sizing: border-box; }
+      html, body { margin: 0; padding: 0; width: 1240px; height: 2360px; overflow: hidden; }
+      body {
+        background: #e9e2d8;
+        color: #2e211a;
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+        padding: 44px 40px 32px;
+      }
+      .eyebrow { font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: #8a7466; }
+      h1 {
+        margin: 8px 0 6px;
+        font-family: "New York", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+        font-size: 44px;
+        line-height: 1.05;
+        letter-spacing: -1.2px;
+        font-weight: 600;
+      }
+      .sub { font-size: 13px; color: #8a7466; }
+      .board {
+        margin-top: 28px;
+        display: grid;
+        grid-template-columns: 196px repeat(3, 300px);
+        gap: 16px 22px;
+        align-items: start;
+      }
+      .col-label {
+        font-size: 10px;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        color: #8a7466;
+        padding-left: 4px;
+      }
+      .variant {
+        align-self: center;
+        padding: 6px 0 0 4px;
+      }
+      .variant .num {
+        font-family: "New York", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+        font-size: 44px;
+        line-height: 1;
+        letter-spacing: -1px;
+        font-weight: 600;
+      }
+      .variant .name {
+        margin-top: 6px;
+        font-size: 11px;
+        letter-spacing: 2.4px;
+        text-transform: uppercase;
+        font-weight: 700;
+      }
+      .variant .desc {
+        margin-top: 10px;
+        font-size: 11px;
+        line-height: 1.5;
+        color: #8a7466;
+        max-width: 170px;
+      }
+      .v1 .num, .v1 .name { color: #0f7b5f; }
+      .v2 .num, .v2 .name { color: #4b5b12; }
+      .v3 .num, .v3 .name { color: #c4623f; }
+      img {
+        display: block;
+        width: 300px;
+        height: auto;
+        border-radius: 28px;
+        box-shadow: 0 24px 50px rgba(70, 42, 28, 0.18);
+        background: #fff;
+      }
+      .footer {
+        margin-top: 26px;
+        display: flex;
+        justify-content: space-between;
+        font-size: 10px;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        color: #a78c77;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="eyebrow">OCHKO · UI exploration</div>
+    <h1>Три направления интерфейса</h1>
+    <div class="sub">Один сценарий — карта, голосовой ассистент и очки. Три разных характера.</div>
+
+    <div class="board">
+      <div></div>
+      <div class="col-label">Навигация</div>
+      <div class="col-label">Ассистент</div>
+      <div class="col-label">Очки</div>
+
+      <div class="variant v1">
+        <div class="num">V1</div>
+        <div class="name">Air</div>
+        <div class="desc">Светлый, спокойный, точный. Максимум читаемости и воздуха. Ближе всего к «инструменту на каждый день».</div>
+      </div>
+      <img src="v1/01-navigation.png" alt="V1 navigation" />
+      <img src="v1/02-assistant.png" alt="V1 assistant" />
+      <img src="v1/03-device.png" alt="V1 device" />
+
+      <div class="variant v2">
+        <div class="num">V2</div>
+        <div class="name">Pulse</div>
+        <div class="desc">Тёмный HUD, лайм и циан. Контраст для улицы и ночи. Ощущение техники, а не приложения.</div>
+      </div>
+      <img src="v2/01-navigation.png" alt="V2 navigation" />
+      <img src="v2/02-assistant.png" alt="V2 assistant" />
+      <img src="v2/03-device.png" alt="V2 device" />
+
+      <div class="variant v3">
+        <div class="num">V3</div>
+        <div class="name">Terra</div>
+        <div class="desc">Тёплая редакционная подача: терракота, песок, антиква. Самый характерный и «человеческий» вариант.</div>
+      </div>
+      <img src="v3/01-navigation.png" alt="V3 navigation" />
+      <img src="v3/02-assistant.png" alt="V3 assistant" />
+      <img src="v3/03-device.png" alt="V3 device" />
+    </div>
+
+    <div class="footer">
+      <span>390 × 844 · HTML/CSS mockups</span>
+      <span>references / v1 · v2 · v3</span>
+    </div>
+  </body>
+</html>
