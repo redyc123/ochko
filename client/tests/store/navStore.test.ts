@@ -1,62 +1,55 @@
 import { NavState } from '@/ble/protocol/display';
 import { ManeuverIcon } from '@/nav/maneuverMap';
-import { encodePolyline6 } from '@/nav/polyline';
-import type { LatLng } from '@/nav/types';
+import type { LatLng, Route, RouteProfile } from '@/nav/types';
 import { useDeviceStore } from '@/store/deviceStore';
 import { useNavStore } from '@/store/navStore';
 
 const ORIGIN: LatLng = { lat: 0, lon: 0 };
 
-function nominatimResult(lat: number, lon: number, name = 'Пятёрочка') {
-  return { display_name: name, lat: String(lat), lon: String(lon), type: 'shop', importance: 0.5 };
+function geocodeResult(lat: number, lon: number, name = 'Пятёрочка') {
+  return { displayName: name, lat, lon, type: 'shop', importance: 0.5 };
 }
 
-interface OsrmManeuverSpec {
-  type: string;
-  modifier?: string;
-  exit?: number;
+interface ServerManeuverSpec {
+  type: number;
 }
 
 /**
- * Строит сырой ответ OSRM /route/v1 из цельного shape и списка манёвров,
- * разрезая shape на пересекающиеся по границе куски (ровно так, как это
- * делают настоящие per-step geometry у OSRM) — чтобы де-дуп в
- * parseOsrmResponse склеил их обратно в тот же shape, что мы передали сюда.
+ * Строит ответ сервера /route из цельного shape и списка манёвров, разрезая
+ * shape на пересекающиеся по границе куски (как per-step geometry у OSRM),
+ * чтобы клиентский trackPosition корректно вычислял upcoming-манёвр.
  */
-function osrmRouteFor(shape: LatLng[], maneuvers: OsrmManeuverSpec[]) {
+function serverRouteFor(shape: LatLng[], maneuvers: ServerManeuverSpec[]): Route {
   const n = maneuvers.length;
   const step = shape.length > 1 ? Math.floor((shape.length - 1) / n) || 1 : 0;
   const boundaries: number[] = [0];
-  for (let i = 1; i < n; i += 1) {
-    boundaries.push(i * step);
-  }
+  for (let i = 1; i < n; i += 1) boundaries.push(i * step);
   boundaries.push(shape.length - 1);
 
-  const steps = maneuvers.map((m, i) => {
-    const from = boundaries[i]!;
-    const to = boundaries[i + 1]!;
-    const slice = shape.length > 0 ? shape.slice(from, to + 1) : [];
-    return {
-      distance: 50,
-      duration: 30,
-      name: `ул. №${i}`,
-      geometry: encodePolyline6(slice.length > 0 ? slice : [shape[shape.length - 1]!]),
-      maneuver: { type: m.type, modifier: m.modifier, exit: m.exit },
-    };
-  });
+  const maneuverList = maneuvers.map((m, i) => ({
+    type: m.type,
+    streetNames: [`ул. №${i}`],
+    distanceMeters: 50,
+    durationSeconds: 30,
+    beginShapeIndex: boundaries[i]!,
+    endShapeIndex: boundaries[i + 1]!,
+  }));
 
   return {
-    code: 'Ok',
-    routes: [{ distance: 100 * n, duration: 60 * n, legs: [{ steps }] }],
+    shape,
+    maneuvers: maneuverList,
+    distanceMeters: 100 * n,
+    durationSeconds: 60 * n,
+    profile: 'pedestrian' as RouteProfile,
   };
 }
 
-function mockFetch(handlers: { nominatim?: unknown; osrm?: unknown }) {
+function mockFetch(handlers: { geocode?: unknown; route?: unknown }) {
   return jest.fn(async (url: string) => {
-    if (url.includes('/route/v1/')) {
-      return { ok: true, status: 200, json: async () => handlers.osrm };
+    if (url.includes('/route')) {
+      return { ok: true, status: 200, json: async () => ({ route: handlers.route }) };
     }
-    return { ok: true, status: 200, json: async () => handlers.nominatim ?? [] };
+    return { ok: true, status: 200, json: async () => handlers.geocode ?? { results: [] } };
   });
 }
 
@@ -85,8 +78,8 @@ describe('navigateTo: геокодинг', () => {
     useNavStore.getState().updatePosition(ORIGIN, 0);
     const shape = [ORIGIN, { lat: 0, lon: 0.002 }];
     (globalThis as unknown as { fetch: jest.Mock }).fetch = mockFetch({
-      nominatim: [nominatimResult(0, 0.002)],
-      osrm: osrmRouteFor(shape, [{ type: 'depart' }, { type: 'arrive' }]),
+      geocode: { results: [geocodeResult(0, 0.002)] },
+      route: serverRouteFor(shape, [{ type: ManeuverIcon.START }, { type: ManeuverIcon.ARRIVE }]),
     });
 
     await useNavStore.getState().navigateTo('Пятёрочка на Ленина');
@@ -98,7 +91,7 @@ describe('navigateTo: геокодинг', () => {
 
   it('несколько результатов — status=choosing со списком кандидатов', async () => {
     (globalThis as unknown as { fetch: jest.Mock }).fetch = mockFetch({
-      nominatim: [nominatimResult(0, 0.001, 'Вариант 1'), nominatimResult(0, 0.002, 'Вариант 2')],
+      geocode: { results: [geocodeResult(0, 0.001, 'Вариант 1'), geocodeResult(0, 0.002, 'Вариант 2')] },
     });
 
     await useNavStore.getState().navigateTo('аптека');
@@ -109,7 +102,7 @@ describe('navigateTo: геокодинг', () => {
   });
 
   it('ничего не найдено — status=error', async () => {
-    (globalThis as unknown as { fetch: jest.Mock }).fetch = mockFetch({ nominatim: [] });
+    (globalThis as unknown as { fetch: jest.Mock }).fetch = mockFetch({ geocode: { results: [] } });
     await useNavStore.getState().navigateTo('несуществующий адрес');
     expect(useNavStore.getState().status).toBe('error');
     expect(useNavStore.getState().errorMessage).toMatch(/не найдено/i);
@@ -117,7 +110,7 @@ describe('navigateTo: геокодинг', () => {
 
   it('без текущей позиции — ошибка «нет GPS», даже если геокодинг успешен', async () => {
     (globalThis as unknown as { fetch: jest.Mock }).fetch = mockFetch({
-      nominatim: [nominatimResult(0, 0.001)],
+      geocode: { results: [geocodeResult(0, 0.001)] },
     });
     await useNavStore.getState().navigateTo('Пятёрочка');
     expect(useNavStore.getState().status).toBe('error');
@@ -128,7 +121,7 @@ describe('navigateTo: геокодинг', () => {
     useNavStore.getState().updatePosition(ORIGIN, 0);
     const shape = [ORIGIN, { lat: 0, lon: 0.002 }];
     (globalThis as unknown as { fetch: jest.Mock }).fetch = mockFetch({
-      osrm: osrmRouteFor(shape, [{ type: 'depart' }, { type: 'arrive' }]),
+      route: serverRouteFor(shape, [{ type: ManeuverIcon.START }, { type: ManeuverIcon.ARRIVE }]),
     });
 
     await useNavStore
@@ -145,8 +138,8 @@ describe('startNavigation / stopNavigation', () => {
     useNavStore.getState().updatePosition(ORIGIN, 0);
     const shape = [ORIGIN, { lat: 0, lon: 0.002 }];
     (globalThis as unknown as { fetch: jest.Mock }).fetch = mockFetch({
-      nominatim: [nominatimResult(0, 0.002)],
-      osrm: osrmRouteFor(shape, [{ type: 'depart' }, { type: 'arrive' }]),
+      geocode: { results: [geocodeResult(0, 0.002)] },
+      route: serverRouteFor(shape, [{ type: ManeuverIcon.START }, { type: ManeuverIcon.ARRIVE }]),
     });
     await useNavStore.getState().navigateTo('цель');
 
@@ -160,8 +153,8 @@ describe('startNavigation / stopNavigation', () => {
     useNavStore.getState().updatePosition(ORIGIN, 0);
     const shape = [ORIGIN, { lat: 0, lon: 0.002 }];
     (globalThis as unknown as { fetch: jest.Mock }).fetch = mockFetch({
-      nominatim: [nominatimResult(0, 0.002)],
-      osrm: osrmRouteFor(shape, [{ type: 'depart' }, { type: 'arrive' }]),
+      geocode: { results: [geocodeResult(0, 0.002)] },
+      route: serverRouteFor(shape, [{ type: ManeuverIcon.START }, { type: ManeuverIcon.ARRIVE }]),
     });
     await useNavStore.getState().navigateTo('цель');
     useNavStore.getState().startNavigation(0);
@@ -183,8 +176,11 @@ describe('updatePosition: манёвры, прогресс, прибытие', (
       { lat: 0, lon: 0.002 },
     ];
     (globalThis as unknown as { fetch: jest.Mock }).fetch = mockFetch({
-      nominatim: [nominatimResult(0, 0.002)],
-      osrm: osrmRouteFor(shape, [{ type: 'depart' }, { type: 'turn', modifier: 'right' }]),
+      geocode: { results: [geocodeResult(0, 0.002)] },
+      route: serverRouteFor(shape, [
+        { type: ManeuverIcon.START },
+        { type: ManeuverIcon.RIGHT },
+      ]),
     });
     await useNavStore.getState().navigateTo('цель');
     useNavStore.getState().startNavigation(0);
@@ -229,14 +225,18 @@ describe('updatePosition: манёвры, прогресс, прибытие', (
     expect(useNavStore.getState().status).toBe('navigating');
 
     (globalThis as unknown as { fetch: jest.Mock }).fetch = mockFetch({
-      osrm: osrmRouteFor(originalShape, [{ type: 'depart' }, { type: 'turn', modifier: 'right' }]),
+      route: serverRouteFor(originalShape, [
+        { type: ManeuverIcon.START },
+        { type: ManeuverIcon.RIGHT },
+      ]),
     });
     useNavStore.getState().updatePosition(farPoint, 10_001);
 
     expect(useNavStore.getState().status).toBe('rerouting');
-    // OsrmRouter в сторе не получает фейковый sleep/now, поэтому честно ждёт
-    // свою паузу между запросами (minIntervalMs=1000 по умолчанию) — ждём с запасом.
-    await new Promise((resolve) => setTimeout(resolve, 1100));
+    // Маршрут строится через серверный прокси (мок), паузы между запросами
+    // нет (в отличие от прежнего OsrmRouter с minIntervalMs=1000), поэтому
+    // дождаться возврата в 'navigating' можно одной завершённой цепочкой.
+    await new Promise((resolve) => setTimeout(resolve, 20));
     expect(useNavStore.getState().status).toBe('navigating');
   });
 });
@@ -246,8 +246,8 @@ describe('checkGpsTimeout', () => {
     useNavStore.getState().updatePosition(ORIGIN, 0);
     const shape = [ORIGIN, { lat: 0, lon: 0.002 }];
     (globalThis as unknown as { fetch: jest.Mock }).fetch = mockFetch({
-      nominatim: [nominatimResult(0, 0.002)],
-      osrm: osrmRouteFor(shape, [{ type: 'depart' }, { type: 'arrive' }]),
+      geocode: { results: [geocodeResult(0, 0.002)] },
+      route: serverRouteFor(shape, [{ type: ManeuverIcon.START }, { type: ManeuverIcon.ARRIVE }]),
     });
     await useNavStore.getState().navigateTo('цель');
     useNavStore.getState().startNavigation(0);
@@ -263,8 +263,8 @@ describe('checkGpsTimeout', () => {
     useNavStore.getState().updatePosition(ORIGIN, 0); // фикс есть, но он «старый» на момент старта
     const shape = [ORIGIN, { lat: 0, lon: 0.002 }];
     (globalThis as unknown as { fetch: jest.Mock }).fetch = mockFetch({
-      nominatim: [nominatimResult(0, 0.002)],
-      osrm: osrmRouteFor(shape, [{ type: 'depart' }, { type: 'arrive' }]),
+      geocode: { results: [geocodeResult(0, 0.002)] },
+      route: serverRouteFor(shape, [{ type: ManeuverIcon.START }, { type: ManeuverIcon.ARRIVE }]),
     });
     await useNavStore.getState().navigateTo('цель');
 
@@ -290,8 +290,8 @@ describe('enableSimulation / tickSimulation', () => {
       { lat: 0, lon: 0.1 },
     ];
     (globalThis as unknown as { fetch: jest.Mock }).fetch = mockFetch({
-      nominatim: [nominatimResult(0, 0.1)],
-      osrm: osrmRouteFor(shape, [{ type: 'depart' }, { type: 'arrive' }]),
+      geocode: { results: [geocodeResult(0, 0.1)] },
+      route: serverRouteFor(shape, [{ type: ManeuverIcon.START }, { type: ManeuverIcon.ARRIVE }]),
     });
     await useNavStore.getState().navigateTo('далёкая цель');
     useNavStore.getState().startNavigation(0);
@@ -311,8 +311,8 @@ describe('кнопка очков', () => {
     useNavStore.getState().updatePosition(ORIGIN, 0);
     const shape = [ORIGIN, { lat: 0, lon: 0.002 }];
     (globalThis as unknown as { fetch: jest.Mock }).fetch = mockFetch({
-      nominatim: [nominatimResult(0, 0.002)],
-      osrm: osrmRouteFor(shape, [{ type: 'depart' }, { type: 'arrive' }]),
+      geocode: { results: [geocodeResult(0, 0.002)] },
+      route: serverRouteFor(shape, [{ type: ManeuverIcon.START }, { type: ManeuverIcon.ARRIVE }]),
     });
     await useNavStore.getState().navigateTo('Пятёрочка');
   }
@@ -335,5 +335,21 @@ describe('кнопка очков', () => {
   it('короткое нажатие без маршрута ничего не делает', () => {
     useDeviceStore.getState().emulator.pressButton(1);
     expect(useNavStore.getState().status).toBe('idle');
+  });
+});
+
+describe('applyServerRoute (из /agent action)', () => {
+  it('ставит маршрут в ready, не запуская навигацию', () => {
+    const shape = [ORIGIN, { lat: 0, lon: 0.002 }];
+    const route = serverRouteFor(shape, [
+      { type: ManeuverIcon.START },
+      { type: ManeuverIcon.ARRIVE },
+    ]);
+
+    useNavStore.getState().applyServerRoute({ lat: 0, lon: 0.002 }, route);
+
+    expect(useNavStore.getState().status).toBe('ready');
+    expect(useNavStore.getState().route).not.toBeNull();
+    expect(useDeviceStore.getState().emulator.getScreenState().nav.state).toBe(NavState.READY);
   });
 });

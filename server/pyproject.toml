@@ -1,7 +1,7 @@
 [project]
 name = "ochko-server"
-version = "0.1.0"
-description = "Сервер О.Ч.К.О. для мобильного приложения: прокси к GigaChat"
+version = "0.2.0"
+description = "Сервер О.Ч.К.О.: LLM-агент, геокодинг, роутинг, STT и прокси к GigaChat"
 requires-python = ">=3.11"
 dependencies = [
     "aiohttp>=3.14.5",

@@ -3,7 +3,8 @@ import json
 from fastapi.testclient import TestClient
 
 from gigachat import CHAT_URL, OAUTH_URL, GigaChatClient, Response
-from main import app
+from llm import GigaChatProvider
+from main import app, app_state
 
 
 class FakeTransport:
@@ -55,7 +56,7 @@ async def test_retry_once_on_401() -> None:
 
 
 def test_chat_endpoint_proxies_and_sets_cors() -> None:
-    app.state.gigachat = GigaChatClient("key", FakeTransport([200]), now=lambda: 1_000_000)
+    app_state.gigachat = GigaChatClient("key", FakeTransport([200]), now=lambda: 1_000_000)
     with TestClient(app) as http:
         res = http.post("/chat", content=b"{}", headers={"Origin": "http://localhost:8081"})
     assert res.status_code == 200
@@ -64,7 +65,7 @@ def test_chat_endpoint_proxies_and_sets_cors() -> None:
 
 
 def test_chat_endpoint_oauth_failure_is_502() -> None:
-    app.state.gigachat = GigaChatClient(
+    app_state.gigachat = GigaChatClient(
         "key", FakeTransport([], oauth_status=401), now=lambda: 1_000_000
     )
     with TestClient(app) as http:

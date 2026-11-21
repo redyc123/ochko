@@ -1,8 +1,7 @@
 import { create } from 'zustand';
 import { NavState } from '../ble/protocol/display';
 import { ButtonKind } from '../ble/protocol/events';
-import { NominatimClient, type GeocodeResult } from '../nav/geocode';
-import { OsrmRouter, RouteError, type Router } from '../nav/router';
+import type { GeocodeResult } from '../nav/geocode';
 import { RouteSimulator, type SimulatedFix } from '../nav/simulate';
 import {
   hasGpsTimedOut,
@@ -14,6 +13,13 @@ import {
   type ProgressSample,
 } from '../nav/tracking';
 import type { LatLng, Route, RouteProfile } from '../nav/types';
+import {
+  buildRoute as serverBuildRoute,
+  geocode as serverGeocode,
+  DEFAULT_PROXY_URL,
+  ServerError,
+  type ServerGeocodeResult,
+} from '../server/api';
 import { useDeviceStore } from './deviceStore';
 
 export type NavStatus =
@@ -27,22 +33,12 @@ export type NavStatus =
   | 'arrived'
   | 'error';
 
-const DEFAULT_NOMINATIM_BASE_URL = 'https://nominatim.openstreetmap.org';
-const DEFAULT_OSRM_BASE_URL = 'https://routing.openstreetmap.de';
-/**
- * Контакт обязателен правилами публичных Nominatim/OSRM (FOSSGIS) — замените
- * на свой при продакшн-использовании. Строго ASCII: значение HTTP-заголовка
- * не может содержать кириллицу — браузер (fetch) бросает исключение ещё до
- * отправки запроса, если в нём встречаются не-ISO-8859-1 символы.
- */
-const APP_USER_AGENT = 'ochko-app/0.1 (OCHKO smart glasses diploma project; https://github.com/)';
 /** ~5.5 км вокруг пользователя — оценка, не измерено. */
 const VIEWBOX_DELTA_DEG = 0.05;
 const AUTO_SELECT_SINGLE_RESULT = true;
 
 export interface NavSettings {
-  nominatimBaseUrl: string;
-  osrmBaseUrl: string;
+  proxyUrl: string;
 }
 
 export interface NavStoreState {
@@ -67,8 +63,13 @@ export interface NavStoreState {
    * Только поиск: при нескольких вариантах — status 'choosing', маршрут не
    * строится (выбор за вызывающим — UI или агентом). null — ошибка сети.
    */
-  searchDestination: (query: string) => Promise<GeocodeResult[] | null>;
+  searchDestination: (query: string) => Promise<ServerGeocodeResult[] | null>;
   chooseDestination: (candidate: GeocodeResult) => Promise<void>;
+  /**
+   * Применить построенный на сервере маршрут (из /agent action start_route).
+   * Ставит destination/route и переводит в 'ready', не запуская навигацию.
+   */
+  applyServerRoute: (destination: LatLng, route: Route) => void;
   startNavigation: (nowMs: number) => void;
   stopNavigation: () => void;
   updatePosition: (position: LatLng, atMs: number) => void;
@@ -77,21 +78,7 @@ export interface NavStoreState {
   tickSimulation: (nowMs: number) => void;
 }
 
-function buildClients(settings: NavSettings): { geocoder: NominatimClient; router: Router } {
-  return {
-    geocoder: new NominatimClient({
-      baseUrl: settings.nominatimBaseUrl,
-      userAgent: APP_USER_AGENT,
-    }),
-    router: new OsrmRouter({ baseUrl: settings.osrmBaseUrl, userAgent: APP_USER_AGENT }),
-  };
-}
-
 export const useNavStore = create<NavStoreState>((set, get) => {
-  let { geocoder, router } = buildClients({
-    nominatimBaseUrl: DEFAULT_NOMINATIM_BASE_URL,
-    osrmBaseUrl: DEFAULT_OSRM_BASE_URL,
-  });
   const rerouteDetector = new RerouteDetector();
   let lastManeuverIndex: number | null = null;
   let lastProgressSample: ProgressSample | null = null;
@@ -100,12 +87,21 @@ export const useNavStore = create<NavStoreState>((set, get) => {
     return useDeviceStore.getState().glassesApi;
   }
 
-  async function buildRoute(from: LatLng, to: LatLng): Promise<Route | null> {
+  function proxyUrl() {
+    return get().settings.proxyUrl;
+  }
+
+  function isServerError(err: unknown): err is ServerError {
+    return err instanceof ServerError;
+  }
+
+  async function buildRouteViaServer(from: LatLng, to: LatLng): Promise<Route | null> {
     try {
-      const route = await router.route(from, to, get().profile);
-      return route;
+      return await serverBuildRoute(proxyUrl(), { from, to, profile: get().profile });
     } catch (err) {
-      const message = err instanceof RouteError ? err.message : 'Не удалось построить маршрут.';
+      const message = isServerError(err)
+        ? err.message
+        : 'Не удалось построить маршрут.';
       set({ status: 'error', errorMessage: message });
       void glassesApi().showNavState(NavState.ROUTE_ERROR);
       return null;
@@ -130,7 +126,7 @@ export const useNavStore = create<NavStoreState>((set, get) => {
       void glassesApi().showNavState(NavState.BUILDING);
     }
     set({ destination, errorMessage: null });
-    const route = await buildRoute(from, destination);
+    const route = await buildRouteViaServer(from, destination);
     if (!route) return;
     // Маршрут сбросили кнопкой, пока он строился
     if (get().status === 'idle') return;
@@ -161,8 +157,7 @@ export const useNavStore = create<NavStoreState>((set, get) => {
 
   return {
     settings: {
-      nominatimBaseUrl: DEFAULT_NOMINATIM_BASE_URL,
-      osrmBaseUrl: DEFAULT_OSRM_BASE_URL,
+      proxyUrl: DEFAULT_PROXY_URL,
     },
     profile: 'pedestrian',
     status: 'idle',
@@ -181,9 +176,6 @@ export const useNavStore = create<NavStoreState>((set, get) => {
 
     setSettings: (patch) => {
       const settings = { ...get().settings, ...patch };
-      const clients = buildClients(settings);
-      geocoder = clients.geocoder;
-      router = clients.router;
       set({ settings });
     },
 
@@ -197,20 +189,14 @@ export const useNavStore = create<NavStoreState>((set, get) => {
 
     searchDestination: async (query) => {
       set({ query, status: 'searching', errorMessage: null, candidates: [] });
-      const viewbox = get().currentPosition
-        ? {
-            minLon: get().currentPosition!.lon - VIEWBOX_DELTA_DEG,
-            minLat: get().currentPosition!.lat - VIEWBOX_DELTA_DEG,
-            maxLon: get().currentPosition!.lon + VIEWBOX_DELTA_DEG,
-            maxLat: get().currentPosition!.lat + VIEWBOX_DELTA_DEG,
-          }
-        : undefined;
+      const position = get().currentPosition;
 
-      let results: GeocodeResult[];
+      let results: ServerGeocodeResult[];
       try {
-        results = await geocoder.search(query, { viewbox, limit: 5 });
-      } catch {
-        set({ status: 'error', errorMessage: 'Нет сети: не удалось найти адрес.' });
+        results = await serverGeocode(proxyUrl(), { query, position, limit: 5 });
+      } catch (err) {
+        const message = isServerError(err) ? err.message : 'Нет сети: не удалось найти адрес.';
+        set({ status: 'error', errorMessage: message });
         return null;
       }
 
@@ -224,6 +210,11 @@ export const useNavStore = create<NavStoreState>((set, get) => {
 
     chooseDestination: async (candidate) => {
       await routeAndMaybeStart({ lat: candidate.lat, lon: candidate.lon }, false);
+    },
+
+    applyServerRoute: (destination, route) => {
+      set({ destination, route, status: 'ready', errorMessage: null });
+      void glassesApi().showNavState(NavState.READY);
     },
 
     startNavigation: (nowMs) => {

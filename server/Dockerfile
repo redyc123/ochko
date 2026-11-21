@@ -15,7 +15,7 @@ COPY pyproject.toml uv.lock .python-version ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-install-project
 
-COPY gigachat.py main.py russian_trusted_root_ca.crt ./
+COPY . ./
 
 ENV PATH="/app/.venv/bin:$PATH" \
     SERVER_PORT=8787

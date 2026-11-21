@@ -54,40 +54,45 @@
   `src/audio/`, чистые функции, тесты на эталонном векторе.
 - [ ] Сохранение фразы в WAV 16 кГц/16 бит, экран «Записи» с прослушиванием
   и процентом потерь.
-- [ ] Интерфейс `SpeechToText.transcribe(pcm, sampleRate)`:
-  - облачные реализации по умолчанию — Yandex SpeechKit и OpenAI-совместимый
-    Whisper API (выбор в настройках);
-  - офлайн запасной вариант — Vosk (малая русская модель) или whisper.cpp
-    через нативный модуль.
+- [ ] Распознавание — **на сервере** (`../server/src/stt.py`): POST `/stt`
+  принимает сырой PCM (заголовок `X-Sample-Rate`), возвращает `{text, confidence}`.
+  Интерфейс `SpeechToText.transcribe(pcm, sampleRate)` на клиенте — тонкий
+  вызов `/stt`. Провайдеры (Yandex SpeechKit, OpenAI-совместимый Whisper API,
+  офлайн Vosk) подключаются на сервере и выбираются в настройках (клиент
+  хранит настройку и передаёт её серверу).
 - [ ] Статусы агента (`AGENT_STATE`: «слушаю»/«думаю») на экран очков во время
   записи/распознавания — пакет уже есть (`GlassesApi.showAgentState`),
   нужно только дёргать его из нового модуля.
 
 ## Этап 4 — LLM-агент с инструментами
 
-Сделан MVP на GigaChat (`src/agent/`, `src/store/agentStore.ts`, экран
-«Ассистент», сервер `../server` на Python — `uv run main.py`):
-ответы на любые вопросы, `navigate_to` / `choose_destination` /
-`stop_navigation` / `get_navigation_status`, переспрос при нескольких адресах
-(ответ «второй»/«3»/«отмена» разбирается локально без LLM). Голос — микрофон
-телефона через `expo-speech-recognition` (временно, до Этапа 3); на очках —
-двойное нажатие или wake word. Остальные пункты ниже — ещё открыты.
+Сделан MVP: весь агент и внешние интеграции переехали **на сервер**
+(`../server/`: `agent.py`, `llm.py` GigaChat, `geocode.py` Nominatim,
+`router.py` OSRM, `stt.py`; запуск `uv run main.py`). Клиент стал тонким:
+`src/store/agentStore.ts` + `src/server/api.ts` ведут сессионный диалог через
+`POST /agent`, а возвращаемые сервером структурированные `actions`
+(например `start_route` с уже построенным маршрутом, `stop_navigation`)
+исполняются локально через `useNavStore`. Ответы на любые вопросы,
+`navigate_to` / `choose_destination` / `stop_navigation` /
+`get_navigation_status`, переспрос при нескольких адресах — уже работают
+(логика разбора «второй»/«3»/«отмена» на сервере). Голос — микрофон телефона
+через `expo-speech-recognition` (временно, до Этапа 3), текст уходит в `/agent`;
+на очках — двойное нажатие или wake word. Остальные пункты ниже — ещё открыты
+и теперь относятся к серверному агенту (`../server/agent.py`).
 
-- [ ] Интерфейс `LlmProvider.chat(messages, tools) → { text } | { toolCalls }`,
-  инструменты в JSON Schema один раз, адаптеры под конкретные API.
-- [ ] Адаптеры: OpenAI-совместимый (по умолчанию — покрывает OpenAI,
-  DeepSeek, OpenRouter, Ollama/LM Studio), GigaChat, YandexGPT; Anthropic —
-  опционально. Ключи — в `react-native-keychain`, не в коде/AsyncStorage.
+- [ ] Адаптеры под конкретные API на сервере: OpenAI-совместимый (по умолчанию
+  — OpenAI, DeepSeek, OpenRouter, Ollama/LM Studio), GigaChat, YandexGPT;
+  Anthropic — опционально. Ключи — в окружении сервера (`.env`), не в коде
+  и не в бандле приложения.
 - [ ] Контекст запроса: время, последние уведомления (этап 2), состояние
-  навигации (`useNavStore`).
-- [ ] Системный промпт → JSON `{ display (≤60 симв.), full }`; если модель
-  вернула не JSON — обрезать текст самим.
-- [ ] Инструменты: `navigate_to` (дёргает `useNavStore.navigateTo`),
-  `stop_navigation`, `set_alarm`, `call`, `restart_pod` (POST на webhook из
-  настроек, без доступа к кластеру с телефона), `read_notifications`.
+  навигации — клиент передаёт `context { position, nav_status }` в `/agent`.
+- [ ] Инструменты к существующим: `set_alarm`, `call`, `restart_pod`
+  (POST на webhook из настроек, без доступа к кластеру с телефона),
+  `read_notifications`.
 - [ ] Подтверждение опасных действий: пакет `CONFIRM` (уже есть,
   `GlassesApi.showConfirm`) + удержание D1 5 с → `CONFIRM_RESULT`. Без
-  подтверждения опасный инструмент не выполняется никогда.
+  подтверждения опасный инструмент не выполняется никогда. Сервер может
+  вернуть `confirm`-действие, которое клиент показывает на очках.
 - [ ] Экран истории диалога (`full`), на очках — `display` с прокруткой
   страниц коротким нажатием (пагинация уже есть в
   `src/emulator/textLayout.ts`, пригодится и здесь).

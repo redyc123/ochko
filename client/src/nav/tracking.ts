@@ -25,8 +25,8 @@ export function trackPosition(route: Route, position: LatLng): TrackingResult {
   const snap = snapToShape(position, route.shape, cumulative);
 
   // beginShapeIndex/endShapeIndex соседних манёвров делят одну и ту же
-  // граничную точку (endShapeIndex_i === beginShapeIndex_{i+1}) — так строит
-  // их Router (см. parseOsrmResponse в src/nav/router.ts), поэтому ищем
+  // граничную точку (endShapeIndex_i === beginShapeIndex_{i+1}) — так их
+  // строит сервер (см. parse_osrm_response в server/router.py), поэтому ищем
   // с конца: последний манёвр, чей begin ещё не позже найденного сегмента.
   // Это естественно схлопывает и вырожденные (нулевой длины) манёвры прибытия.
   let currentManeuverIndex = 0;

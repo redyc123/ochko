@@ -33,7 +33,7 @@ class Config:
     oled_col_offset = 28  # окно 72 столбца из 128 по центру, проверить на модуле
     oled_contrast = 0xAF
     # Зеркалирование оптики: "h" (по умолчанию), "v", "hv", "none". Делается битами контроллера.
-    mirror = "h"
+    mirror = "v"
     # Без связи: True — показать «NO LINK», False — погасить панель (экономия)
     show_no_link = True
 
