@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { buildAgentNavStatus } from '../agent/context';
 import { listenOnce, SpeechError, type ListenHandle } from '../agent/speech';
 import { AgentState, ClearLayer } from '../ble/protocol/display';
 import { ButtonKind } from '../ble/protocol/events';
@@ -8,6 +9,7 @@ import {
   DEFAULT_PROXY_URL,
   ServerError,
   type ServerAgentAction,
+  type ServerAgentActionResult,
   type ServerGeocodeResult,
 } from '../server/api';
 import { useDeviceStore } from './deviceStore';
@@ -42,21 +44,33 @@ export interface AgentStoreState {
 }
 
 /** Выполнить структурированные действия сервера через navStore. */
-function executeActions(actions: ServerAgentAction[]) {
+function executeActions(actions: ServerAgentAction[]): ServerAgentActionResult[] {
   const nav = useNavStore.getState();
+  const results: ServerAgentActionResult[] = [];
   for (const action of actions) {
-    if (action.type === 'start_route') {
-      nav.applyServerRoute(action.destination, action.route);
-    } else if (action.type === 'stop_navigation') {
-      nav.stopNavigation();
+    try {
+      if (action.type === 'start_route') {
+        nav.applyServerRoute(action.destination, action.route);
+      } else if (action.type === 'stop_navigation') {
+        nav.stopNavigation();
+      }
+      results.push({ type: action.type, status: 'applied' });
+    } catch (err) {
+      results.push({
+        type: action.type,
+        status: 'failed',
+        error: err instanceof Error ? err.message : 'Неизвестная ошибка клиента',
+      });
     }
   }
+  return results;
 }
 
 export const useAgentStore = create<AgentStoreState>((set, get) => {
   let nextId = 1;
   let listenHandle: ListenHandle | null = null;
   let sessionId: string | null = null;
+  let actionResults: ServerAgentActionResult[] = [];
 
   function glassesApi() {
     return useDeviceStore.getState().glassesApi;
@@ -98,6 +112,7 @@ export const useAgentStore = create<AgentStoreState>((set, get) => {
     setProxyUrl: (url) => {
       // Смена сервера — новый диалог (новая сессия на новом адресе).
       sessionId = null;
+      actionResults = [];
       set({ proxyUrl: url });
     },
 
@@ -108,12 +123,18 @@ export const useAgentStore = create<AgentStoreState>((set, get) => {
       set({ status: 'thinking', errorMessage: null, partial: '' });
       void glassesApi().showAgentState(AgentState.THINKING);
       try {
-        const { currentPosition: position, status } = useNavStore.getState();
+        const nav = useNavStore.getState();
+        const sentActionResults = actionResults;
         const result = await agentTurn(get().proxyUrl, {
           session_id: sessionId,
           user_text: question,
-          context: { position, nav_status: status },
+          context: {
+            position: nav.currentPosition,
+            nav_status: buildAgentNavStatus(nav),
+            action_results: sentActionResults,
+          },
         });
+        actionResults = actionResults.slice(sentActionResults.length);
         sessionId = result.session_id;
         const reply = result.reply;
         push('assistant', reply.full);
@@ -123,7 +144,7 @@ export const useAgentStore = create<AgentStoreState>((set, get) => {
           candidates: reply.candidates,
         });
         // Клиент исполняет маршрут/остановку, которые решил сервер-агент.
-        executeActions(reply.actions);
+        actionResults.push(...executeActions(reply.actions));
         void glassesApi().showAgentState(AgentState.READY);
         void glassesApi().showText(ANSWER_TTL_S, reply.display);
       } catch (err) {
@@ -165,6 +186,7 @@ export const useAgentStore = create<AgentStoreState>((set, get) => {
       listenHandle?.abort();
       listenHandle = null;
       sessionId = null;
+      actionResults = [];
       set({ messages: [], status: 'idle', candidates: [], partial: '', errorMessage: null });
       void glassesApi().clear(ClearLayer.AGENT);
     },

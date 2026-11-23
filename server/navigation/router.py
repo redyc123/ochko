@@ -7,18 +7,21 @@
 from __future__ import annotations
 
 import asyncio
+import math
+import os
 import time
 
 import aiohttp
 
-from maneuver_map import map_osrm_maneuver_to_icon, uses_exit_number
-from polyline import decode_polyline6
+from .maneuver_map import map_osrm_maneuver_to_icon, uses_exit_number
+from .polyline import decode_polyline6
 
 DEFAULT_OSRM_BASE_URL = "https://routing.openstreetmap.de"
 APP_USER_AGENT = "ochko-server/0.1 (OCHKO smart glasses diploma project; https://github.com/)"
 MIN_INTERVAL_MS = 1000
 MAX_RETRIES = 3
 RETRY_BASE_DELAY_MS = 500
+DEFAULT_MAX_PEDESTRIAN_ROUTE_DISTANCE_METERS = 20_000
 
 Profile = str  # 'pedestrian' | 'bicycle' | 'auto'
 PROFILE_TO_OSRM = {
@@ -30,6 +33,66 @@ PROFILE_TO_OSRM = {
 
 class RouteError(Exception):
     pass
+
+
+class RouteValidationError(RouteError):
+    pass
+
+
+class RouteTooLongError(RouteError):
+    def __init__(self, distance_meters: float, maximum_meters: float) -> None:
+        self.distance_meters = distance_meters
+        self.maximum_meters = maximum_meters
+        distance_km = f"{distance_meters / 1000:.1f}".replace(".", ",")
+        maximum_km = round(maximum_meters / 1000)
+        super().__init__(
+            f"Пешеходный маршрут слишком длинный: {distance_km} км. "
+            f"Максимум — {maximum_km} км. Выберите более близкий адрес или другой способ передвижения."
+        )
+
+
+def max_pedestrian_route_distance_meters() -> float:
+    try:
+        value = float(os.environ.get("MAX_PEDESTRIAN_ROUTE_DISTANCE_METERS", DEFAULT_MAX_PEDESTRIAN_ROUTE_DISTANCE_METERS))
+        return value if math.isfinite(value) and value > 0 else DEFAULT_MAX_PEDESTRIAN_ROUTE_DISTANCE_METERS
+    except (TypeError, ValueError):
+        return DEFAULT_MAX_PEDESTRIAN_ROUTE_DISTANCE_METERS
+
+
+def validate_route(route: dict, profile: Profile, maximum_meters: float | None = None) -> dict:
+    if not isinstance(route, dict):
+        raise RouteValidationError("OSRM вернул некорректный маршрут")
+    distance = route.get("distanceMeters")
+    duration = route.get("durationSeconds")
+    shape = route.get("shape")
+    if (
+        not isinstance(distance, (int, float))
+        or not math.isfinite(distance)
+        or distance < 0
+        or not isinstance(duration, (int, float))
+        or not math.isfinite(duration)
+        or duration < 0
+        or not isinstance(shape, list)
+        or len(shape) < 2
+    ):
+        raise RouteValidationError("OSRM вернул неполный или некорректный маршрут")
+    for point in shape:
+        if not isinstance(point, dict):
+            raise RouteValidationError("OSRM вернул некорректные координаты маршрута")
+        lat, lon = point.get("lat"), point.get("lon")
+        if (
+            not isinstance(lat, (int, float))
+            or not math.isfinite(lat)
+            or not -90 <= lat <= 90
+            or not isinstance(lon, (int, float))
+            or not math.isfinite(lon)
+            or not -180 <= lon <= 180
+        ):
+            raise RouteValidationError("OSRM вернул некорректные координаты маршрута")
+    maximum = maximum_meters if maximum_meters is not None else max_pedestrian_route_distance_meters()
+    if profile == "pedestrian" and distance > maximum:
+        raise RouteTooLongError(distance, maximum)
+    return route
 
 
 def profile_to_osrm(profile: Profile) -> str:
@@ -145,7 +208,7 @@ class OsrmRouter:
                 finally:
                     if close:
                         await session.close()
-                return parse_osrm_response(data, profile)
+                return validate_route(parse_osrm_response(data, profile), profile)
             except RouteError:
                 raise
             except Exception:

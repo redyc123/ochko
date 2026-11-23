@@ -61,6 +61,7 @@ beforeEach(() => {
     query: '',
     candidates: [],
     destination: null,
+    destinationName: null,
     route: null,
     errorMessage: null,
     currentPosition: null,
@@ -86,6 +87,7 @@ describe('navigateTo: геокодинг', () => {
 
     const state = useNavStore.getState();
     expect(state.status).toBe('ready');
+    expect(state.destinationName).toBe('Пятёрочка');
     expect(state.route?.shape.length).toBe(2);
   });
 
@@ -163,6 +165,7 @@ describe('startNavigation / stopNavigation', () => {
 
     expect(useNavStore.getState().status).toBe('idle');
     expect(useNavStore.getState().route).toBeNull();
+    expect(useNavStore.getState().destinationName).toBeNull();
     expect(useDeviceStore.getState().emulator.getScreenState().nav.state).toBe(NavState.OFF);
   });
 });
@@ -346,9 +349,10 @@ describe('applyServerRoute (из /agent action)', () => {
       { type: ManeuverIcon.ARRIVE },
     ]);
 
-    useNavStore.getState().applyServerRoute({ lat: 0, lon: 0.002 }, route);
+    useNavStore.getState().applyServerRoute({ lat: 0, lon: 0.002, displayName: 'Театр' }, route);
 
     expect(useNavStore.getState().status).toBe('ready');
+    expect(useNavStore.getState().destinationName).toBe('Театр');
     expect(useNavStore.getState().route).not.toBeNull();
     expect(useDeviceStore.getState().emulator.getScreenState().nav.state).toBe(NavState.READY);
   });

@@ -38,13 +38,15 @@ npm start                             # Expo dev server; emulator glasses by def
 cp .env.example .env       # set GIGA_CHAT_AUTH_TOKEN
 uv run main.py             # :8787
 uv run pytest
-uv run pytest tests/test_api.py::test_health   # one test
+uv run pytest tests/api/test_api.py::test_health   # one test
 ```
 
-- Flat modules, not a package: run pytest from `server/`; tests import `main`, `agent`, etc. directly.
-- `main.py` is the only FastAPI wiring; `agent.py` owns the LLM function-calling loop; `ServerNavPort` does Nominatim + OSRM; `sessions.py` is in-memory, so restarting drops dialog state.
-- `gigachat.py` needs `russian_trusted_root_ca.crt`. `lifespan` must keep one `aiohttp` session open across `yield`; closing it early gives `RuntimeError: Session is closed` on the first LLM call.
-- The client sends `nav_status` as a string; `normalize_nav_status` accepts a string or a dict. Do not assume it is an object.
+- Packages by responsibility: `agent/` (core loop, LLM adapter, tools, sessions), `navigation/` (geocoding, local search, OSRM, polylines), `integrations/` (GigaChat transport), `speech/` (STT). `main.py` stays at the root as the entry point and only FastAPI wiring. Imports are package-qualified (`from agent.core import Agent`); use relative imports inside a package.
+- Tests mirror the packages under `tests/agent/`, `tests/navigation/`, `tests/integrations/`, plus endpoint tests in `tests/api/`. Run pytest from `server/`.
+- `ServerNavPort` does Nominatim + OSRM; `agent/sessions.py` is in-memory, so restarting drops dialog state.
+- `integrations/gigachat.py` needs `russian_trusted_root_ca.crt`. `lifespan` must keep one `aiohttp` session open across `yield`; closing it early gives `RuntimeError: Session is closed` on the first LLM call.
+- The client sends `nav_status` as a dict with route progress and the next maneuver; `normalize_nav_status` still accepts the legacy string form. Client `action_results` report whether the previous server actions were applied.
+- `LocalSearch` makes at most five Nominatim search calls and keeps only results within `MAX_PEDESTRIAN_ROUTE_DISTANCE_METERS` (default 20 km). Reverse geocoding is separate and exposed as `POST /reverse-geocode`. Pedestrian routes over the same limit are rejected; bicycle/auto routes are not.
 - Nominatim/OSRM are public services limited to ~1 req/s; the clients already pace requests.
 - Docker has no volume mounts. After editing `server/`, run `docker compose up -d --build` from the repo root or the old image keeps running. `docker compose logs -f server` has the full traceback.
 - Neither Python project has lint/typecheck config; pytest is the check.

@@ -11,9 +11,9 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-from llm import LlmError
-from parsechoice import parse_choice
-from tools import (
+from .llm import LlmError
+from .parsechoice import parse_choice
+from .tools import (
     AGENT_FUNCTIONS,
     format_distance_short_ru,
     format_duration_ru,
@@ -32,7 +32,11 @@ SYSTEM_PROMPT = (
     "Если просят проложить маршрут, отвести или подсказать дорогу — вызывай navigate_to. "
     "Если navigate_to вернул несколько вариантов — НЕ выбирай сам: коротко перечисли их с номерами "
     "и спроси, какой нужен. Когда пользователь ответит — вызови choose_destination с номером. "
-    "Если ничего не найдено — попроси уточнить адрес."
+    "Если после пяти попыток не найден подходящий адрес рядом — предложи переформулировать запрос, "
+    "повторить попытку позже или указать точку на карте в приложении. Не выбирай адрес в другом городе. "
+    "Если маршрут слишком длинный для пешего перехода — не предлагай его, а попроси более близкий адрес. "
+    "Используй расстояние, время и следующий манёвр из контекста навигации, не выдумывай их. "
+    "Учитывай результаты действий на клиенте: failed означает, что действие не выполнено."
 )
 
 
@@ -40,7 +44,14 @@ SYSTEM_PROMPT = (
 class AgentContext:
     now: "object" = None
     position: dict | None = None
-    nav_status: dict = field(default_factory=dict)
+    nav_status: dict | str = field(default_factory=dict)
+    action_results: list[dict] = field(default_factory=list)
+
+
+class NavError(Exception):
+    def __init__(self, message: str, code: str = "nav_error") -> None:
+        super().__init__(message)
+        self.code = code
 
 
 class NavPort:
@@ -150,7 +161,7 @@ class Agent:
                     answer = "Хорошо, маршрут не строю."
                 else:
                     res = await self.choose_index(choice["index"])
-                    answer = res["message"] if res.get("ok") else res.get("error", "Не вышло.")
+                    answer = res.get("result") or res.get("error") or "Не вышло."
                 self.history.append({"role": "assistant", "content": answer})
                 self.trim_history()
                 return self.reply(answer)
@@ -212,6 +223,27 @@ class Agent:
         facts.append(
             f"Навигация: {nav.get('status')}, цель — {dest}." if dest else f"Навигация: {nav.get('status')}."
         )
+        distance = nav.get("remainingDistanceMeters")
+        duration = nav.get("remainingDurationSeconds")
+        if isinstance(distance, (int, float)):
+            facts.append(f"Осталось {format_distance_short_ru(distance)}.")
+        if isinstance(duration, (int, float)):
+            facts.append(f"Примерное время в пути: {format_duration_ru(duration)}.")
+        maneuver = nav.get("nextManeuver")
+        if isinstance(maneuver, dict):
+            kind = maneuver.get("kind", "unknown")
+            streets = ", ".join(maneuver.get("streetNames") or []) or "улица не указана"
+            maneuver_distance = maneuver.get("distanceToManeuverMeters")
+            distance_text = (
+                f" через {format_distance_short_ru(maneuver_distance)}"
+                if isinstance(maneuver_distance, (int, float))
+                else ""
+            )
+            facts.append(f"Следующий манёвр: {kind}, {streets}{distance_text}.")
+        if nav.get("gpsOk") is False:
+            facts.append("GPS: нет актуального сигнала.")
+        if ctx.action_results:
+            facts.append(f"Результаты последних действий на клиенте: {_json(ctx.action_results)}.")
         if self.pending:
             names = "; ".join(f"{i + 1}) {short_place_name(c['displayName'])}" for i, c in enumerate(self.pending))
             facts.append(f"Ждём выбора адреса: {names}.")
@@ -225,7 +257,7 @@ class Agent:
             if n < 1 or n > len(self.pending):
                 return {"error": "Нет варианта с таким номером."}
             res = await self.choose_index(n - 1)
-            return res if res.get("ok") else {"error": res.get("error", "Не вышло.")}
+            return {"error": res["error"]} if "error" in res else res
         if name == "stop_navigation":
             self.pending = []
             self.actions.append(StopNavigationAction())
@@ -239,12 +271,23 @@ class Agent:
             return {"error": "Пустой адрес."}
         try:
             results = await self.nav.search(query)
+        except NavError as err:
+            self.pending = []
+            return {"found": 0, "code": err.code, "error": str(err)}
         except Exception:
-            return {"error": "Нет сети: не удалось найти адрес."}
+            self.pending = []
+            return {"found": 0, "code": "geocode_unavailable", "error": "Нет сети: не удалось найти адрес. Повторите позже или укажите точку на карте в приложении."}
 
         self.pending = []
         if not results:
-            return {"found": 0, "error": "Ничего не найдено, попроси уточнить адрес."}
+            return {
+                "found": 0,
+                "code": "local_address_not_found",
+                "error": (
+                    "Подходящий адрес рядом не найден после пяти попыток. "
+                    "Предложи переформулировать запрос, повторить позже или указать точку на карте в приложении."
+                ),
+            }
         if len(results) == 1:
             return await self._plan_route(results[0])
         self.pending = results[:MAX_CANDIDATES]
@@ -264,9 +307,12 @@ class Agent:
 
     async def _plan_route(self, candidate: dict) -> dict:
         """Строит маршрут и отдаёт его клиенту как action; для LLM — только описание."""
-        route = await self.nav.build_route(candidate)
+        try:
+            route = await self.nav.build_route(candidate)
+        except NavError as err:
+            return {"code": err.code, "error": str(err)}
         if route is None:
-            return {"error": "Не удалось построить маршрут."}
+            return {"code": "route_unavailable", "error": "Не удалось построить маршрут. Выберите другую точку или повторите позже."}
         self.actions.append(StartRouteAction(candidate, route))
         return {
             "result": (

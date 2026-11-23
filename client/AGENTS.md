@@ -31,6 +31,7 @@ Run lint and typecheck before declaring any task done.
 
 - The app has **no router**: `src/screens/RootNavigator.tsx` renders a custom bottom-tab shell (`Карта / Ассистент / Очки`) that keeps all three screens mounted and hides inactive ones with opacity, disabled pointer events, and hidden accessibility elements. Do not use `display: none` here: native map markers disappear after the map is shown again. `src/screens/tabContext.ts` exports `useRootTab()` for cross-screen navigation. Do not add `expo-router`, `src/app/`, or React Navigation.
 - The UI kit lives in `src/ui/` (theme tokens in `src/ui/theme.ts`, icons in `src/ui/Icon.tsx`). Screens use only these components, not ad-hoc inline styles.
+- Native map taps select the exact pressed coordinate. `NavigationScreen` reverse-geocodes it through the server and `MapSelectionCard` builds a route via `chooseDestination`; a reverse result may supply the name but must not replace the pressed coordinates. Keep selection markers separate from current position and destination markers. The web map remains a static placeholder.
 
 ## Native builds
 

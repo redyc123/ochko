@@ -14,6 +14,8 @@ export interface RouteMapProps {
   shape?: LatLng[];
   currentPosition?: LatLng | null;
   destination?: LatLng | null;
+  selectedPosition?: LatLng | null;
+  onMapPress?: (position: LatLng) => void;
   style?: StyleProp<ViewStyle>;
   interactive?: boolean;
 }
@@ -39,7 +41,15 @@ function regionFor(shape: LatLng[], currentPosition: LatLng | null, destination:
  * есть RouteMap.web.tsx — Metro подставит его автоматически при сборке под web.
  */
 export const RouteMap = forwardRef<RouteMapHandle, RouteMapProps>(function RouteMap(
-  { shape = [], currentPosition = null, destination = null, style, interactive = true },
+  {
+    shape = [],
+    currentPosition = null,
+    destination = null,
+    selectedPosition = null,
+    onMapPress,
+    style,
+    interactive = true,
+  },
   ref,
 ) {
   type MapViewRef = React.ElementRef<typeof MapView>;
@@ -70,6 +80,15 @@ export const RouteMap = forwardRef<RouteMapHandle, RouteMapProps>(function Route
       rotateEnabled={interactive}
       pitchEnabled={interactive}
       toolbarEnabled={false}
+      onPress={
+        onMapPress
+          ? (event) =>
+              onMapPress({
+                lat: event.nativeEvent.coordinate.latitude,
+                lon: event.nativeEvent.coordinate.longitude,
+              })
+          : undefined
+      }
     >
       <UrlTile urlTemplate={OSM_TILE_URL} maximumZ={19} />
       {shape.length > 1 ? (
@@ -100,6 +119,17 @@ export const RouteMap = forwardRef<RouteMapHandle, RouteMapProps>(function Route
         >
           <View style={styles.destinationPin}>
             <View style={styles.destinationPinInner} />
+          </View>
+        </Marker>
+      ) : null}
+      {selectedPosition ? (
+        <Marker
+          coordinate={{ latitude: selectedPosition.lat, longitude: selectedPosition.lon }}
+          anchor={{ x: 0.5, y: 0.5 }}
+          title="Выбранная точка"
+        >
+          <View style={styles.selectedPin}>
+            <View style={styles.selectedPinInner} />
           </View>
         </Marker>
       ) : null}
@@ -139,6 +169,22 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
+    backgroundColor: colors.surface,
+  },
+  selectedPin: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: colors.accent,
+    borderWidth: 3,
+    borderColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  selectedPinInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
     backgroundColor: colors.surface,
   },
 });

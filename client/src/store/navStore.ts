@@ -48,6 +48,7 @@ export interface NavStoreState {
   query: string;
   candidates: GeocodeResult[];
   destination: LatLng | null;
+  destinationName: string | null;
   route: Route | null;
   errorMessage: string | null;
   currentPosition: LatLng | null;
@@ -69,7 +70,7 @@ export interface NavStoreState {
    * Применить построенный на сервере маршрут (из /agent action start_route).
    * Ставит destination/route и переводит в 'ready', не запуская навигацию.
    */
-  applyServerRoute: (destination: LatLng, route: Route) => void;
+  applyServerRoute: (destination: LatLng & { displayName?: string }, route: Route) => void;
   startNavigation: (nowMs: number) => void;
   stopNavigation: () => void;
   updatePosition: (position: LatLng, atMs: number) => void;
@@ -112,6 +113,7 @@ export const useNavStore = create<NavStoreState>((set, get) => {
     destination: LatLng,
     autoStart: boolean,
     nowMs?: number,
+    destinationName?: string,
   ): Promise<void> {
     const from = get().currentPosition;
     if (!from) {
@@ -125,7 +127,11 @@ export const useNavStore = create<NavStoreState>((set, get) => {
       set({ status: 'routing' });
       void glassesApi().showNavState(NavState.BUILDING);
     }
-    set({ destination, errorMessage: null });
+    set({
+      destination,
+      destinationName: destinationName ?? (isRerouting ? get().destinationName : null),
+      errorMessage: null,
+    });
     const route = await buildRouteViaServer(from, destination);
     if (!route) return;
     // Маршрут сбросили кнопкой, пока он строился
@@ -164,6 +170,7 @@ export const useNavStore = create<NavStoreState>((set, get) => {
     query: '',
     candidates: [],
     destination: null,
+    destinationName: null,
     route: null,
     errorMessage: null,
     currentPosition: null,
@@ -183,7 +190,12 @@ export const useNavStore = create<NavStoreState>((set, get) => {
       const results = await get().searchDestination(query);
       if (results === null) return;
       if (results.length === 1 && AUTO_SELECT_SINGLE_RESULT) {
-        await routeAndMaybeStart({ lat: results[0]!.lat, lon: results[0]!.lon }, false);
+        await routeAndMaybeStart(
+          { lat: results[0]!.lat, lon: results[0]!.lon },
+          false,
+          undefined,
+          results[0]!.displayName,
+        );
       }
     },
 
@@ -209,11 +221,22 @@ export const useNavStore = create<NavStoreState>((set, get) => {
     },
 
     chooseDestination: async (candidate) => {
-      await routeAndMaybeStart({ lat: candidate.lat, lon: candidate.lon }, false);
+      await routeAndMaybeStart(
+        { lat: candidate.lat, lon: candidate.lon },
+        false,
+        undefined,
+        candidate.displayName,
+      );
     },
 
     applyServerRoute: (destination, route) => {
-      set({ destination, route, status: 'ready', errorMessage: null });
+      set({
+        destination,
+        destinationName: destination.displayName ?? null,
+        route,
+        status: 'ready',
+        errorMessage: null,
+      });
       void glassesApi().showNavState(NavState.READY);
     },
 
@@ -236,6 +259,7 @@ export const useNavStore = create<NavStoreState>((set, get) => {
         status: 'idle',
         route: null,
         destination: null,
+        destinationName: null,
         simulator: null,
         simulationEnabled: false,
       });

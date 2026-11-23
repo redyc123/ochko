@@ -10,7 +10,7 @@ import threading
 import uuid
 from typing import Any
 
-from agent import Agent
+from .core import Agent
 
 
 class Session:

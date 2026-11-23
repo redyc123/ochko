@@ -22,26 +22,31 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 
-from agent import Agent, AgentContext, NavPort, normalize_nav_status, to_display_text
-from geocode import GeocodeError, GeocodeResult, NominatimClient, SearchOptions
-from gigachat import (
+from agent.core import Agent, AgentContext, NavError, NavPort, normalize_nav_status, to_display_text
+from agent.llm import GigaChatProvider, LlmError
+from agent.sessions import SessionStore, global_store
+from integrations.gigachat import (
     GigaChatClient,
     GigaChatError,
     aiohttp_transport,
     make_session,
     make_ssl_context,
 )
-from llm import GigaChatProvider, LlmError
-from router import OsrmRouter, RouteError
-from sessions import SessionStore, global_store
-from stt import SpeechToText, UnconfiguredSpeechToText
+from navigation.geocode import GeocodeError, NominatimClient
+from navigation.localsearch import LocalSearch, LocalSearchError, LocationRequiredError
+from navigation.router import (
+    OsrmRouter,
+    RouteError,
+    RouteTooLongError,
+    max_pedestrian_route_distance_meters,
+    validate_route,
+)
+from speech.stt import SpeechToText, UnconfiguredSpeechToText
 
 HERE = Path(__file__).resolve().parent
 log = logging.getLogger("ochko-server")
 
-# Профиль маршрута по умолчанию и разброс viewbox для геокодинга "рядом".
 DEFAULT_PROFILE = "pedestrian"
-VIEWBOX_DELTA_DEG = 0.05
 
 
 def load_env_file(path: Path) -> None:
@@ -68,24 +73,29 @@ class ServerNavPort(NavPort):
         self.current_position = position
 
     async def search(self, query: str) -> list[dict]:
-        viewbox = None
-        if self.current_position:
-            lat = self.current_position.get("lat")
-            lon = self.current_position.get("lon")
-            if lat is not None and lon is not None:
-                viewbox = (lon - VIEWBOX_DELTA_DEG, lat - VIEWBOX_DELTA_DEG, lon + VIEWBOX_DELTA_DEG, lat + VIEWBOX_DELTA_DEG)
-        results = await self.geocoder.search(query, SearchOptions(viewbox=viewbox, limit=5))
-        return [r.to_json() for r in results]
+        try:
+            results = await LocalSearch(
+                self.geocoder,
+                max_distance_meters=max_pedestrian_route_distance_meters(),
+            ).search(query, self.current_position, limit=5)
+            return [result.to_json() for result in results]
+        except LocationRequiredError as err:
+            raise NavError(str(err), "location_required") from err
+        except LocalSearchError as err:
+            raise NavError(str(err), "geocode_unavailable") from err
 
     async def build_route(self, destination: dict) -> dict | None:
         if not self.current_position:
-            return None
+            raise NavError("Нет текущей позиции: включите GPS или укажите точку на карте.", "location_required")
         from_ll = (self.current_position["lon"], self.current_position["lat"])
         to_ll = (destination["lon"], destination["lat"])
         try:
-            return await self.router.route(from_ll, to_ll, DEFAULT_PROFILE)
-        except RouteError:
-            return None
+            route = await self.router.route(from_ll, to_ll, DEFAULT_PROFILE)
+            return validate_route(route, DEFAULT_PROFILE)
+        except RouteTooLongError as err:
+            raise NavError(str(err), "route_too_long") from err
+        except RouteError as err:
+            raise NavError("Не удалось построить корректный маршрут. Выберите другую точку или повторите позже.", "route_unavailable") from err
 
 
 class AppState:
@@ -167,16 +177,16 @@ async def geocode(request: Request) -> Response:
     position = body.get("position")
     limit = int(body.get("limit", 5))
 
-    viewbox = None
-    if position and position.get("lat") is not None and position.get("lon") is not None:
-        lat = float(position["lat"])
-        lon = float(position["lon"])
-        viewbox = (lon - VIEWBOX_DELTA_DEG, lat - VIEWBOX_DELTA_DEG, lon + VIEWBOX_DELTA_DEG, lat + VIEWBOX_DELTA_DEG)
     try:
-        results = await app_state.geocoder.search(query, SearchOptions(viewbox=viewbox, limit=limit))
-    except GeocodeError as err:
+        results = await LocalSearch(
+            app_state.geocoder,
+            max_distance_meters=max_pedestrian_route_distance_meters(),
+        ).search(query, position, limit=limit)
+    except LocationRequiredError as err:
+        return JSONResponse({"error": str(err)}, status_code=400)
+    except LocalSearchError as err:
         return JSONResponse({"error": str(err)}, status_code=502)
-    return JSONResponse({"results": [r.to_json() for r in results]})
+    return JSONResponse({"results": [result.to_json() for result in results]})
 
 
 @app.post("/route")
@@ -195,16 +205,37 @@ async def route_endpoint(request: Request) -> Response:
             (float(to["lon"]), float(to["lat"])),
             profile,
         )
+        route = validate_route(route, profile)
+    except RouteTooLongError as err:
+        return JSONResponse({"error": str(err), "code": "route_too_long"}, status_code=422)
     except RouteError as err:
         return JSONResponse({"error": str(err)}, status_code=502)
     return JSONResponse({"route": route})
+
+
+@app.post("/reverse-geocode")
+async def reverse_geocode(request: Request) -> Response:
+    """Ближайший к координатам адрес OSM: {"lat": float, "lon": float} → {result}."""
+    _ensure_services()
+    body = await request.json()
+    try:
+        lat = float(body["lat"])
+        lon = float(body["lon"])
+    except (KeyError, TypeError, ValueError):
+        return JSONResponse({"error": "Нужны координаты lat/lon"}, status_code=400)
+    try:
+        result = await app_state.geocoder.reverse(lat, lon, zoom=18)
+    except GeocodeError as err:
+        return JSONResponse({"error": str(err)}, status_code=502)
+    return JSONResponse({"result": result.to_json() if result else None})
 
 
 @app.post("/agent")
 async def agent_endpoint(request: Request) -> Response:
     """Сессионный диалог агента.
 
-    Тело: {"session_id": str|null, "user_text": str, "context": {position, nav_status}}.
+    Тело: {"session_id": str|null, "user_text": str,
+           "context": {position, nav_status, action_results}}.
     Ответ: {"session_id", "reply": {display, full, candidates, actions}}.
     """
     if not app_state.llm:
@@ -217,6 +248,12 @@ async def agent_endpoint(request: Request) -> Response:
     context_body = body.get("context") or {}
     position = context_body.get("position")
     nav_status = normalize_nav_status(context_body.get("nav_status"))
+    raw_action_results = context_body.get("action_results")
+    action_results = (
+        [item for item in raw_action_results if isinstance(item, dict)]
+        if isinstance(raw_action_results, list)
+        else []
+    )
 
     port = ServerNavPort(app_state.geocoder, app_state.router)
     port.set_position(position)
@@ -225,11 +262,25 @@ async def agent_endpoint(request: Request) -> Response:
         agent = session.agent
         agent.nav = port
     else:
-        agent = Agent(app_state.llm, port, context=lambda: AgentContext(now=time.localtime(), position=position, nav_status=nav_status))
+        agent = Agent(
+            app_state.llm,
+            port,
+            context=lambda: AgentContext(
+                now=time.localtime(),
+                position=position,
+                nav_status=nav_status,
+                action_results=action_results,
+            ),
+        )
         session = app_state.sessions.create(agent)
 
     # Контекст должен обновляться: привязываем актуальные данные к этому агенту на время запроса.
-    agent.context = lambda: AgentContext(now=time.localtime(), position=position, nav_status=nav_status)
+    agent.context = lambda: AgentContext(
+        now=time.localtime(),
+        position=position,
+        nav_status=nav_status,
+        action_results=action_results,
+    )
     agent.nav = port
 
     try:

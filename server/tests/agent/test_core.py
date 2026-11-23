@@ -1,22 +1,15 @@
-import json
-
 import pytest
 
-from agent import (
-    AGENT_TEXT_MAX_CHARS,
+from agent.core import (
     Agent,
     AgentContext,
     StartRouteAction,
     StopNavigationAction,
     normalize_nav_status,
-    to_display_text,
 )
-from llm import GigaChatProvider, parse_gigachat_reply, to_gigachat_messages
-from maneuver_map import ManeuverIcon, map_osrm_maneuver_to_icon
-from parsechoice import parse_choice
-from polyline import decode_polyline6, encode_polyline6
-from router import build_osrm_url, parse_osrm_response
-from tools import format_distance_short_ru, format_duration_ru, short_place_name
+from agent.llm import parse_gigachat_reply, to_gigachat_messages
+from agent.parsechoice import parse_choice
+from agent.tools import format_distance_short_ru, format_duration_ru, short_place_name
 
 
 class FakeLlm:
@@ -43,42 +36,6 @@ class FakeNav:
 
     async def build_route(self, destination):
         return self._route
-
-
-# --- polyline ---
-
-def test_polyline6_roundtrip():
-    pts = [(55.7558, 37.6173), (55.7511, 37.6173), (55.7500, 37.6000)]
-    assert decode_polyline6(encode_polyline6(pts)) == pts
-
-
-def test_polyline6_decodes_coordinates():
-    # Известная строка, закодированная вручную тем же алгоритмом
-    pts = decode_polyline6(encode_polyline6([(59.91, 30.31)]))
-    assert abs(pts[0][0] - 59.91) < 1e-5
-    assert abs(pts[0][1] - 30.31) < 1e-5
-
-
-# --- maneuver mapping ---
-
-def test_fork_keep_right():
-    assert map_osrm_maneuver_to_icon("fork", "right") == ManeuverIcon.KEEP_RIGHT
-    assert map_osrm_maneuver_to_icon("fork", "left") == ManeuverIcon.KEEP_LEFT
-
-
-def test_fixed_types():
-    assert map_osrm_maneuver_to_icon("depart") == ManeuverIcon.START
-    assert map_osrm_maneuver_to_icon("arrive") == ManeuverIcon.ARRIVE
-    assert map_osrm_maneuver_to_icon("roundabout") == ManeuverIcon.ROUNDABOUT
-
-
-def test_unknown_type_none():
-    assert map_osrm_maneuver_to_icon("bogus") == ManeuverIcon.NONE
-
-
-def test_modifier_turns():
-    assert map_osrm_maneuver_to_icon("turn", "left") == ManeuverIcon.LEFT
-    assert map_osrm_maneuver_to_icon("continue", "slight right") == ManeuverIcon.SLIGHT_RIGHT
 
 
 # --- parsechoice ---
@@ -140,30 +97,6 @@ def test_parse_gigachat_function_call():
     assert r["call"]["name"] == "get_navigation_status"
 
 
-# --- router ---
-
-def test_build_osrm_url_order_lon_lat():
-    url = build_osrm_url("https://routing.openstreetmap.de", (37.6, 55.75), (37.7, 55.76), "pedestrian")
-    assert "routed-foot/route/v1/foot/37.6,55.75;37.7,55.76" in url
-
-
-def test_parse_osrm_response_builds_route():
-    # Один шаг, geometry в polyline6 одной точки
-    single = encode_polyline6([(55.75, 37.6)])
-    data = {
-        "code": "Ok",
-        "routes": [{"distance": 1000, "duration": 300, "legs": [{"steps": [
-            {"distance": 1000, "duration": 300, "name": "Тверская", "geometry": single,
-             "maneuver": {"type": "arrive", "modifier": "straight"}},
-        ]}]}],
-    }
-    route = parse_osrm_response(data, "pedestrian")
-    assert route["distanceMeters"] == 1000
-    assert route["maneuvers"][0]["type"] == ManeuverIcon.ARRIVE
-    assert route["maneuvers"][0]["streetNames"] == ["Тверская"]
-    assert route["profile"] == "pedestrian"
-
-
 # --- agent ---
 
 async def test_agent_text_reply():
@@ -207,6 +140,18 @@ async def test_agent_pending_clarification_then_choose():
     agent2 = agents_with_history_hack(agent)
     reply2 = await agent2.ask("второй")
     assert any(isinstance(a, StartRouteAction) for a in reply2.actions)
+    assert reply2.full.startswith("Маршрут до «Второй, Москва»")
+
+
+async def test_agent_choose_destination_tool_reports_success():
+    agent = Agent(FakeLlm([]), FakeNav(route={"distanceMeters": 500, "durationSeconds": 200}))
+    agent.pending = [{"displayName": "Первый, Москва", "lat": 1, "lon": 1}]
+
+    result = await agent.run_tool("choose_destination", {"number": 1})
+
+    assert "result" in result
+    assert "error" not in result
+    assert any(isinstance(a, StartRouteAction) for a in agent.actions)
 
 
 def agents_with_history_hack(agent):
@@ -256,3 +201,47 @@ def test_build_facts_includes_destination_name():
     )
     facts = agent._build_facts()
     assert "цель — Театр" in facts
+
+
+def test_build_facts_includes_navigation_progress():
+    agent = Agent(
+        FakeLlm([]),
+        FakeNav(),
+        context=lambda: AgentContext(
+            nav_status={
+                "status": "navigating",
+                "destinationName": "Театр",
+                "remainingDistanceMeters": 650,
+                "remainingDurationSeconds": 480,
+                "nextManeuver": {
+                    "kind": "right",
+                    "streetNames": ["Тверская улица"],
+                    "distanceToManeuverMeters": 80,
+                },
+                "gpsOk": False,
+            }
+        ),
+    )
+
+    facts = agent._build_facts()
+
+    assert "Осталось 650 м." in facts
+    assert "Примерное время в пути: 8 мин." in facts
+    assert "Следующий манёвр: right, Тверская улица через 80 м." in facts
+    assert "GPS: нет актуального сигнала." in facts
+
+
+def test_build_facts_includes_client_action_results():
+    agent = Agent(
+        FakeLlm([]),
+        FakeNav(),
+        context=lambda: AgentContext(
+            action_results=[{"type": "start_route", "status": "applied"}]
+        ),
+    )
+
+    facts = agent._build_facts()
+
+    assert "Результаты последних действий на клиенте" in facts
+    assert '"type": "start_route"' in facts
+    assert '"status": "applied"' in facts

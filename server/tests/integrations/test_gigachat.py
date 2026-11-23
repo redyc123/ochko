@@ -2,8 +2,8 @@ import json
 
 from fastapi.testclient import TestClient
 
-from gigachat import CHAT_URL, OAUTH_URL, GigaChatClient, Response
-from llm import GigaChatProvider
+from agent.llm import GigaChatProvider
+from integrations.gigachat import CHAT_URL, OAUTH_URL, GigaChatClient, Response
 from main import app, app_state
 
 

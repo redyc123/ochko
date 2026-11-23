@@ -13,7 +13,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { isSpeechAvailable } from '@/agent/speech';
 import { shortPlaceName } from '@/agent/tools';
+import type { LatLng } from '@/nav/types';
 import { formatDistanceRu, formatDurationRu, trackPosition } from '@/nav/tracking';
+import { reverseGeocode, ServerError } from '@/server/api';
 import { useAgentStore } from '@/store/agentStore';
 import { useDeviceStore } from '@/store/deviceStore';
 import { useNavStore } from '@/store/navStore';
@@ -23,6 +25,7 @@ import { Chip } from '@/ui/Chip';
 import { GlassesCard } from '@/ui/GlassesPreview';
 import { Icon, maneuverIconName } from '@/ui/Icon';
 import { ManeuverCard } from '@/ui/ManeuverCard';
+import { MapSelectionCard } from '@/ui/MapSelectionCard';
 import { SearchPill } from '@/ui/SearchPill';
 import { StatusBanner } from '@/ui/StatusBanner';
 import { ToggleRow } from '@/ui/ToggleRow';
@@ -35,6 +38,13 @@ import { useRootTab } from './tabContext';
 const SIMULATION_SPEED_OPTIONS = [1, 2, 5, 10] as const;
 const GPS_POLL_INTERVAL_MS = 5000;
 const COLLAPSED_HEIGHT = 64;
+
+interface MapSelectionState {
+  position: LatLng;
+  displayName: string | null;
+  loading: boolean;
+  error: string | null;
+}
 
 const STATUS_LABELS: Record<string, string> = {
   idle: 'Готово к вводу цели',
@@ -63,6 +73,7 @@ export function NavigationScreen(): React.JSX.Element {
   const errorMessage = useNavStore((s) => s.errorMessage);
   const simulationEnabled = useNavStore((s) => s.simulationEnabled);
   const gpsOk = useNavStore((s) => s.gpsOk);
+  const proxyUrl = useNavStore((s) => s.settings.proxyUrl);
 
   const navigateTo = useNavStore((s) => s.navigateTo);
   const chooseDestination = useNavStore((s) => s.chooseDestination);
@@ -81,8 +92,10 @@ export function NavigationScreen(): React.JSX.Element {
   const [showManeuvers, setShowManeuvers] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [contentHeight, setContentHeight] = useState(300);
+  const [mapSelection, setMapSelection] = useState<MapSelectionState | null>(null);
   const mapRef = useRef<RouteMapHandle>(null);
   const followRef = useRef(true);
+  const selectionRequestRef = useRef(0);
   const locationSubscription = useRef<Location.LocationSubscription | null>(null);
 
   const expandedHeight = Math.min(Math.max(contentHeight, COLLAPSED_HEIGHT), maxSheetHeight);
@@ -171,6 +184,61 @@ export function NavigationScreen(): React.JSX.Element {
     mapRef.current?.animateToRegion(region, 350);
   }, [route, collapsed, currentPosition]);
 
+  useEffect(
+    () => () => {
+      selectionRequestRef.current += 1;
+    },
+    [],
+  );
+
+  const closeMapSelection = () => {
+    selectionRequestRef.current += 1;
+    setMapSelection(null);
+  };
+
+  const handleMapPress = (position: LatLng) => {
+    const requestId = ++selectionRequestRef.current;
+    setMapSelection({ position, displayName: null, loading: true, error: null });
+
+    void reverseGeocode(proxyUrl, position)
+      .then((result) => {
+        if (selectionRequestRef.current !== requestId) return;
+        setMapSelection((current) =>
+          current
+            ? { ...current, displayName: result?.displayName ?? null, loading: false, error: null }
+            : null,
+        );
+      })
+      .catch((err: unknown) => {
+        if (selectionRequestRef.current !== requestId) return;
+        const error =
+          err instanceof ServerError
+            ? 'Сервис адресов недоступен. Маршрут до выбранной точки всё равно можно построить.'
+            : 'Нет сети: адрес не определён. Маршрут до выбранной точки всё равно можно построить.';
+        setMapSelection((current) => (current ? { ...current, loading: false, error } : null));
+      });
+  };
+
+  const handleBuildRouteFromMap = () => {
+    if (!mapSelection) return;
+    if (!currentPosition) {
+      setMapSelection({
+        ...mapSelection,
+        error: 'Нет текущей позиции. Включите GPS и дождитесь определения местоположения.',
+      });
+      return;
+    }
+    const selection = mapSelection;
+    closeMapSelection();
+    void chooseDestination({
+      displayName: selection.displayName ?? 'Точка на карте',
+      lat: selection.position.lat,
+      lon: selection.position.lon,
+      type: 'map',
+      importance: 1,
+    });
+  };
+
   const handleToggleSimulation = (enable: boolean) => {
     enableSimulation(enable, speedMultiplier);
     if (enable) {
@@ -188,11 +256,13 @@ export function NavigationScreen(): React.JSX.Element {
   const handleSubmit = () => {
     const trimmed = query.trim();
     if (trimmed.length > 0) {
+      closeMapSelection();
       void navigateTo(trimmed);
     }
   };
 
   const handleSelect = (candidate: (typeof candidates)[number]) => {
+    closeMapSelection();
     void chooseDestination(candidate);
     setQuery(shortPlaceName(candidate.displayName));
   };
@@ -235,6 +305,8 @@ export function NavigationScreen(): React.JSX.Element {
           shape={route?.shape ?? []}
           currentPosition={currentPosition}
           destination={destination}
+          selectedPosition={mapSelection?.position}
+          onMapPress={handleMapPress}
           style={StyleSheet.absoluteFill}
         />
 
@@ -258,6 +330,20 @@ export function NavigationScreen(): React.JSX.Element {
             <StatusBanner message="Нет GPS — проверьте разрешение" tone="error" />
           ) : null}
         </View>
+
+        {mapSelection ? (
+          <View style={styles.selectionOverlay} pointerEvents="box-none">
+            <MapSelectionCard
+              position={mapSelection.position}
+              address={mapSelection.displayName}
+              loading={mapSelection.loading}
+              error={mapSelection.error}
+              canBuildRoute={Boolean(currentPosition)}
+              onBuildRoute={handleBuildRouteFromMap}
+              onClose={closeMapSelection}
+            />
+          </View>
+        ) : null}
 
         <View style={styles.bottomFloats} pointerEvents="box-none">
           <GlassesCard device={emulator} onPress={() => setActiveTab('glasses')} scale={1.25} />
@@ -512,6 +598,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.sm,
+  },
+  selectionOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 76,
+    paddingHorizontal: spacing.lg,
+    zIndex: 2,
   },
   bottomFloats: {
     position: 'absolute',

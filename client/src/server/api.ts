@@ -7,8 +7,7 @@ import type { LatLng, Route, RouteProfile } from '../nav/types';
  * and executes the structured actions the server returns.
  */
 
-export const DEFAULT_PROXY_URL =
-  process.env.EXPO_PUBLIC_AGENT_PROXY_URL ?? 'http://localhost:8787';
+export const DEFAULT_PROXY_URL = process.env.EXPO_PUBLIC_AGENT_PROXY_URL ?? 'http://localhost:8787';
 
 export class ServerError extends Error {
   readonly status: number;
@@ -54,16 +53,32 @@ export async function geocode(
   return data.results;
 }
 
+export async function reverseGeocode(
+  baseUrl: string,
+  position: LatLng,
+): Promise<ServerGeocodeResult | null> {
+  const res = await fetch(`${trimTrailingSlash(baseUrl)}/reverse-geocode`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(position),
+  });
+  const data = (await res.json().catch(() => ({}))) as {
+    result?: ServerGeocodeResult | null;
+    error?: string;
+  };
+  if (!res.ok || !('result' in data)) {
+    throw new ServerError(data.error ?? `Не удалось определить адрес (${res.status})`, res.status);
+  }
+  return data.result ?? null;
+}
+
 export interface ServerRouteParams {
   from: LatLng;
   to: LatLng;
   profile?: RouteProfile;
 }
 
-export async function buildRoute(
-  baseUrl: string,
-  params: ServerRouteParams,
-): Promise<Route> {
+export async function buildRoute(baseUrl: string, params: ServerRouteParams): Promise<Route> {
   const res = await fetch(`${trimTrailingSlash(baseUrl)}/route`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -81,8 +96,14 @@ export async function buildRoute(
 
 /** Structured, client-executable action returned by the server /agent. */
 export type ServerAgentAction =
-  | { type: 'start_route'; destination: LatLng; route: Route }
+  | { type: 'start_route'; destination: ServerGeocodeResult; route: Route }
   | { type: 'stop_navigation' };
+
+export interface ServerAgentActionResult {
+  type: ServerAgentAction['type'];
+  status: 'applied' | 'failed';
+  error?: string;
+}
 
 export interface ServerAgentReply {
   display: string;
@@ -91,9 +112,24 @@ export interface ServerAgentReply {
   actions: ServerAgentAction[];
 }
 
+export interface ServerAgentNavStatus {
+  status: string;
+  destinationName?: string;
+  remainingDistanceMeters?: number;
+  remainingDurationSeconds?: number;
+  nextManeuver?: {
+    kind: string;
+    streetNames: string[];
+    distanceToManeuverMeters: number;
+  };
+  routeProfile?: RouteProfile;
+  gpsOk: boolean;
+}
+
 export interface ServerAgentContext {
   position: LatLng | null;
-  nav_status: string; // NavStatus string sent by client (server derives what it needs from it)
+  nav_status: ServerAgentNavStatus;
+  action_results?: ServerAgentActionResult[];
 }
 
 export interface ServerAgentParams {
@@ -116,9 +152,7 @@ export async function agentTurn(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(params),
   });
-  const data = (await res.json().catch(() => ({}))) as
-    | ServerAgentResult
-    | { error?: string };
+  const data = (await res.json().catch(() => ({}))) as ServerAgentResult | { error?: string };
   if (!res.ok || !('session_id' in data) || !data.session_id) {
     const msg = 'error' in data && data.error ? data.error : `Ошибка сервера (${res.status})`;
     throw new ServerError(msg, res.status);

@@ -54,7 +54,7 @@
   `src/audio/`, чистые функции, тесты на эталонном векторе.
 - [ ] Сохранение фразы в WAV 16 кГц/16 бит, экран «Записи» с прослушиванием
   и процентом потерь.
-- [ ] Распознавание — **на сервере** (`../server/src/stt.py`): POST `/stt`
+- [ ] Распознавание — **на сервере** (`../server/speech/stt.py`): POST `/stt`
   принимает сырой PCM (заголовок `X-Sample-Rate`), возвращает `{text, confidence}`.
   Интерфейс `SpeechToText.transcribe(pcm, sampleRate)` на клиенте — тонкий
   вызов `/stt`. Провайдеры (Yandex SpeechKit, OpenAI-совместимый Whisper API,
@@ -67,8 +67,9 @@
 ## Этап 4 — LLM-агент с инструментами
 
 Сделан MVP: весь агент и внешние интеграции переехали **на сервер**
-(`../server/`: `agent.py`, `llm.py` GigaChat, `geocode.py` Nominatim,
-`router.py` OSRM, `stt.py`; запуск `uv run main.py`). Клиент стал тонким:
+(`../server/`: `agent/core.py`, `agent/llm.py` GigaChat,
+`navigation/geocode.py` Nominatim, `navigation/router.py` OSRM,
+`speech/stt.py`; запуск `uv run main.py`). Клиент стал тонким:
 `src/store/agentStore.ts` + `src/server/api.ts` ведут сессионный диалог через
 `POST /agent`, а возвращаемые сервером структурированные `actions`
 (например `start_route` с уже построенным маршрутом, `stop_navigation`)
@@ -78,7 +79,7 @@
 (логика разбора «второй»/«3»/«отмена» на сервере). Голос — микрофон телефона
 через `expo-speech-recognition` (временно, до Этапа 3), текст уходит в `/agent`;
 на очках — двойное нажатие или wake word. Остальные пункты ниже — ещё открыты
-и теперь относятся к серверному агенту (`../server/agent.py`).
+и теперь относятся к серверному агенту (`../server/agent/core.py`).
 
 - [ ] Адаптеры под конкретные API на сервере: OpenAI-совместимый (по умолчанию
   — OpenAI, DeepSeek, OpenRouter, Ollama/LM Studio), GigaChat, YandexGPT;
