@@ -36,6 +36,7 @@ export type IconName =
   | 'stairs'
   | 'ferry'
   | 'pin'
+  | 'locate'
   | 'dot';
 
 export interface IconProps {
@@ -254,6 +255,13 @@ function iconShape(name: IconName, color: string, strokeWidth: number): ReactNod
       );
     case 'dot':
       return <Circle cx={12} cy={12} r={4.5} fill={color} />;
+    case 'locate':
+      return (
+        <>
+          <Circle cx={12} cy={12} r={3} fill={color} />
+          <Circle cx={12} cy={12} r={9} {...stroke} />
+        </>
+      );
     default:
       return <Circle cx={12} cy={12} r={4.5} fill={color} />;
   }

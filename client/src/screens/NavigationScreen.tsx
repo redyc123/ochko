@@ -1,6 +1,14 @@
 import * as Location from 'expo-location';
 import React, { useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  LayoutAnimation,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { isSpeechAvailable } from '@/agent/speech';
@@ -20,11 +28,13 @@ import { StatusBanner } from '@/ui/StatusBanner';
 import { ToggleRow } from '@/ui/ToggleRow';
 import { colors, profileLabels, radii, shadows, spacing } from '@/ui/theme';
 
-import { RouteMap } from './RouteMap';
+import { centerRegion, DEFAULT_CENTER, fitRegion, shiftUp, type MapRegion } from './mapRegions';
+import { RouteMap, type RouteMapHandle } from './RouteMap';
 import { useRootTab } from './tabContext';
 
 const SIMULATION_SPEED_OPTIONS = [1, 2, 5, 10] as const;
 const GPS_POLL_INTERVAL_MS = 5000;
+const COLLAPSED_HEIGHT = 64;
 
 const STATUS_LABELS: Record<string, string> = {
   idle: 'Готово к вводу цели',
@@ -41,6 +51,8 @@ const STATUS_LABELS: Record<string, string> = {
 export function NavigationScreen(): React.JSX.Element {
   const { setActiveTab } = useRootTab();
   const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
+  const maxSheetHeight = windowHeight * 0.68;
 
   const emulator = useDeviceStore((s) => s.emulator);
   const status = useNavStore((s) => s.status);
@@ -67,8 +79,13 @@ export function NavigationScreen(): React.JSX.Element {
   const [query, setQuery] = useState('');
   const [speedMultiplier, setSpeedMultiplier] = useState<number>(5);
   const [showManeuvers, setShowManeuvers] = useState(false);
-  const [sheetHeight, setSheetHeight] = useState(280);
+  const [collapsed, setCollapsed] = useState(false);
+  const [contentHeight, setContentHeight] = useState(300);
+  const mapRef = useRef<RouteMapHandle>(null);
+  const followRef = useRef(true);
   const locationSubscription = useRef<Location.LocationSubscription | null>(null);
+
+  const expandedHeight = Math.min(Math.max(contentHeight, COLLAPSED_HEIGHT), maxSheetHeight);
 
   // Реальный GPS — только когда не включена симуляция (она подменяет источник позиции).
   useEffect(() => {
@@ -125,6 +142,35 @@ export function NavigationScreen(): React.JSX.Element {
     return () => clearInterval(interval);
   }, [simulationEnabled, tickSimulation, checkGpsTimeout]);
 
+  // Следование включается только во время активной навигации.
+  useEffect(() => {
+    if (status === 'navigating' || status === 'rerouting') {
+      followRef.current = true;
+    } else if (status === 'ready' || status === 'arrived' || status === 'idle') {
+      followRef.current = false;
+    }
+  }, [status]);
+
+  // Во время навигации карта плавно центрируется на текущей позиции.
+  useEffect(() => {
+    if (!followRef.current || !currentPosition) return;
+    mapRef.current?.animateToRegion(centerRegion(currentPosition), 700);
+  }, [currentPosition]);
+
+  // Камера реагирует на свёрнутость шторки и на появление/смену маршрута:
+  // свёрнут — вписать весь маршрут; развёрнут — вписать маршрут над шторкой.
+  useEffect(() => {
+    if (followRef.current) return;
+    const points = route?.shape ?? [];
+    let region: MapRegion;
+    if (points.length === 0) {
+      region = currentPosition ? centerRegion(currentPosition) : centerRegion(DEFAULT_CENTER);
+    } else {
+      region = collapsed ? fitRegion(points) : shiftUp(fitRegion(points));
+    }
+    mapRef.current?.animateToRegion(region, 350);
+  }, [route, collapsed, currentPosition]);
+
   const handleToggleSimulation = (enable: boolean) => {
     enableSimulation(enable, speedMultiplier);
     if (enable) {
@@ -151,6 +197,27 @@ export function NavigationScreen(): React.JSX.Element {
     setQuery(shortPlaceName(candidate.displayName));
   };
 
+  const handleRecenter = () => {
+    if (!currentPosition) return;
+    if (status === 'navigating' || status === 'rerouting') followRef.current = true;
+    mapRef.current?.animateToRegion(centerRegion(currentPosition), 500);
+  };
+
+  const handleToggleSheet = () => {
+    try {
+      LayoutAnimation.configureNext(
+        LayoutAnimation.create(
+          240,
+          LayoutAnimation.Types.easeInEaseOut,
+          LayoutAnimation.Properties.opacity,
+        ),
+      );
+    } catch {
+      // web / среда без LayoutAnimation — просто сменится высота шторки
+    }
+    setCollapsed((value) => !value);
+  };
+
   const tracking = route && currentPosition ? trackPosition(route, currentPosition) : null;
   const upcoming = route
     ? (route.maneuvers[tracking?.upcomingManeuverIndex ?? 0] ?? route.maneuvers[0])
@@ -162,52 +229,101 @@ export function NavigationScreen(): React.JSX.Element {
 
   return (
     <View style={styles.container}>
-      <RouteMap
-        shape={route?.shape ?? []}
-        currentPosition={currentPosition}
-        destination={destination}
-        style={styles.mapFill}
-        interactive={false}
-      />
-
-      <View
-        style={[styles.topOverlay, { paddingTop: insets.top + spacing.sm }]}
-        pointerEvents="box-none"
-      >
-        <SearchPill
-          value={query}
-          onChangeText={setQuery}
-          onSubmit={handleSubmit}
-          onMic={handleMic}
+      <View style={styles.mapArea}>
+        <RouteMap
+          ref={mapRef}
+          shape={route?.shape ?? []}
+          currentPosition={currentPosition}
+          destination={destination}
+          style={StyleSheet.absoluteFill}
         />
-        <View style={styles.chips}>
-          <Chip label={gpsOk ? 'GPS' : 'Нет GPS'} dot tone={gpsOk ? 'accent' : 'neutral'} />
-          <Chip label="Очки" icon="glasses" onPress={() => setActiveTab('glasses')} />
-          {simulationEnabled ? <Chip label="Симуляция" icon="play" tone="accent" /> : null}
+
+        <View
+          style={[styles.topOverlay, { paddingTop: insets.top + spacing.sm }]}
+          pointerEvents="box-none"
+        >
+          <SearchPill
+            value={query}
+            onChangeText={setQuery}
+            onSubmit={handleSubmit}
+            onMic={handleMic}
+          />
+          <View style={styles.chips}>
+            <Chip label={gpsOk ? 'GPS' : 'Нет GPS'} dot tone={gpsOk ? 'accent' : 'neutral'} />
+            <Chip label="Очки" icon="glasses" onPress={() => setActiveTab('glasses')} />
+            {simulationEnabled ? <Chip label="Симуляция" icon="play" tone="accent" /> : null}
+          </View>
+          {errorMessage ? <StatusBanner message={errorMessage} tone="error" /> : null}
+          {!gpsOk && status === 'navigating' ? (
+            <StatusBanner message="Нет GPS — проверьте разрешение" tone="error" />
+          ) : null}
         </View>
-        {errorMessage ? <StatusBanner message={errorMessage} tone="error" /> : null}
-        {!gpsOk && status === 'navigating' ? (
-          <StatusBanner message="Нет GPS — проверьте разрешение" tone="error" />
-        ) : null}
+
+        <View style={styles.bottomFloats} pointerEvents="box-none">
+          <GlassesCard device={emulator} onPress={() => setActiveTab('glasses')} scale={1.25} />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Вернуться к текущему местоположению"
+            disabled={!currentPosition}
+            onPress={handleRecenter}
+            style={[styles.recenter, !currentPosition ? styles.recenterDisabled : null]}
+          >
+            <Icon name="locate" size={22} color={colors.ink} strokeWidth={2} />
+          </Pressable>
+        </View>
       </View>
 
-      <View
-        style={[styles.floatingGlasses, { bottom: sheetHeight + spacing.md }]}
-        pointerEvents="box-none"
-      >
-        <GlassesCard device={emulator} onPress={() => setActiveTab('glasses')} scale={1.25} />
-      </View>
+      <View style={[styles.sheet, { height: collapsed ? COLLAPSED_HEIGHT : expandedHeight }]}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={collapsed ? 'Развернуть панель' : 'Свернуть панель'}
+          onPress={handleToggleSheet}
+          style={styles.handleRow}
+        >
+          {collapsed ? (
+            route ? (
+              <View style={styles.collapsedRow}>
+                <View style={styles.collapsedIcon}>
+                  <Icon
+                    name={maneuverIconName(upcoming?.type ?? 0)}
+                    size={18}
+                    color={colors.accent}
+                    strokeWidth={2}
+                  />
+                </View>
+                <Text style={styles.collapsedDist}>{formatDistanceRu(distanceToManeuver)}</Text>
+                <Text style={styles.collapsedStreet} numberOfLines={1}>
+                  {upcoming?.streetNames[0] ?? ''}
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.collapsedRow}>
+                <Icon name="search" size={16} color={colors.muted} strokeWidth={2} />
+                <Text style={styles.collapsedPrompt}>Куда идём?</Text>
+              </View>
+            )
+          ) : (
+            <View style={styles.handleCenter}>
+              <View style={styles.handle} />
+            </View>
+          )}
+          <View
+            style={[
+              styles.handleChevron,
+              { transform: [{ rotate: collapsed ? '-90deg' : '90deg' }] },
+            ]}
+          >
+            <Icon name="chevronRight" size={16} color={colors.soft} strokeWidth={2.2} />
+          </View>
+        </Pressable>
 
-      <View
-        style={styles.sheet}
-        onLayout={(event) => setSheetHeight(event.nativeEvent.layout.height)}
-      >
-        <View style={styles.handle} />
         <ScrollView
           style={styles.sheetScroll}
           contentContainerStyle={styles.sheetContent}
           showsVerticalScrollIndicator={false}
           bounces={false}
+          scrollEnabled={!collapsed && contentHeight > maxSheetHeight}
+          onContentSizeChange={(_width, height) => setContentHeight(height)}
         >
           {status === 'choosing' ? (
             <>
@@ -380,12 +496,8 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.bg,
   },
-  mapFill: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+  mapArea: {
+    flex: 1,
   },
   topOverlay: {
     position: 'absolute',
@@ -401,40 +513,101 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: spacing.sm,
   },
-  floatingGlasses: {
-    position: 'absolute',
-    right: spacing.lg,
-    zIndex: 2,
-    alignItems: 'flex-end',
-  },
-  sheet: {
+  bottomFloats: {
     position: 'absolute',
     left: 0,
     right: 0,
-    bottom: 0,
-    maxHeight: '68%',
+    bottom: spacing.md,
+    paddingHorizontal: spacing.lg,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    zIndex: 2,
+  },
+  recenter: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.line,
+    ...shadows.floating,
+  },
+  recenterDisabled: {
+    opacity: 0.4,
+  },
+  sheet: {
+    overflow: 'hidden',
     backgroundColor: colors.surface,
     borderTopLeftRadius: radii.sheet,
     borderTopRightRadius: radii.sheet,
     paddingHorizontal: spacing.xl,
-    paddingTop: spacing.sm,
     paddingBottom: spacing.lg,
     zIndex: 3,
     ...shadows.sheet,
   },
+  handleRow: {
+    position: 'relative',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.xs,
+    minHeight: 40,
+  },
+  handleCenter: {
+    flex: 1,
+    alignItems: 'center',
+  },
   handle: {
-    alignSelf: 'center',
     width: 40,
     height: 4,
     borderRadius: 2,
     backgroundColor: colors.sand,
-    marginBottom: spacing.md,
+  },
+  handleChevron: {
+    position: 'absolute',
+    right: spacing.lg,
+    top: spacing.md,
+  },
+  collapsedRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  collapsedIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.accentSoft,
+  },
+  collapsedDist: {
+    fontSize: 17,
+    fontWeight: '700',
+    letterSpacing: -0.3,
+    color: colors.ink,
+  },
+  collapsedStreet: {
+    flex: 1,
+    fontSize: 13,
+    color: colors.muted,
+  },
+  collapsedPrompt: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.ink,
   },
   sheetScroll: {
     flexGrow: 0,
     flexShrink: 1,
   },
   sheetContent: {
+    paddingTop: spacing.sm,
     paddingBottom: spacing.xs,
   },
   sheetHeader: {

@@ -66,13 +66,28 @@ function RootShell() {
     <RootTabContext.Provider value={{ activeTab, setActiveTab }}>
       <View style={styles.container}>
         <View style={styles.content}>
-          <View style={[styles.screen, activeTab !== 'map' ? styles.hidden : null]}>
+          <View
+            style={[styles.screen, activeTab !== 'map' ? styles.hidden : null]}
+            pointerEvents={activeTab === 'map' ? 'auto' : 'none'}
+            accessibilityElementsHidden={activeTab !== 'map'}
+            importantForAccessibility={activeTab === 'map' ? 'auto' : 'no-hide-descendants'}
+          >
             <NavigationScreen />
           </View>
-          <View style={[styles.screen, activeTab !== 'assistant' ? styles.hidden : null]}>
+          <View
+            style={[styles.screen, activeTab !== 'assistant' ? styles.hidden : null]}
+            pointerEvents={activeTab === 'assistant' ? 'auto' : 'none'}
+            accessibilityElementsHidden={activeTab !== 'assistant'}
+            importantForAccessibility={activeTab === 'assistant' ? 'auto' : 'no-hide-descendants'}
+          >
             <AgentScreen />
           </View>
-          <View style={[styles.screen, activeTab !== 'glasses' ? styles.hidden : null]}>
+          <View
+            style={[styles.screen, activeTab !== 'glasses' ? styles.hidden : null]}
+            pointerEvents={activeTab === 'glasses' ? 'auto' : 'none'}
+            accessibilityElementsHidden={activeTab !== 'glasses'}
+            importantForAccessibility={activeTab === 'glasses' ? 'auto' : 'no-hide-descendants'}
+          >
             <DeviceScreen />
           </View>
         </View>
@@ -106,7 +121,7 @@ const styles = StyleSheet.create({
     bottom: 0,
   },
   hidden: {
-    display: 'none',
+    opacity: 0,
   },
   tabBar: {
     flexDirection: 'row',

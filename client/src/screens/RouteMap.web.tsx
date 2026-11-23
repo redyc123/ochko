@@ -1,18 +1,29 @@
-import React from 'react';
+import React, { forwardRef, useImperativeHandle } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Svg, { Circle, Path, Rect, Text as SvgText } from 'react-native-svg';
 
 import { colors } from '../ui/theme';
-import type { RouteMapProps } from './RouteMap';
+import type { MapRegion } from './mapRegions';
+import type { RouteMapHandle, RouteMapProps } from './RouteMap';
 
-export type { RouteMapProps } from './RouteMap';
+export type { RouteMapHandle, RouteMapProps } from './RouteMap';
 
 /**
  * Веб-версия: react-native-maps не загружается в браузере, поэтому рисуем
  * стилизованную демо-карту в палитре V1. Это именно превью для разработки,
  * а не реальные геоданные — на iOS/Android используется RouteMap.tsx.
+ * Согласуется с RouteMapHandle, чтобы тип ref совпадал на всех платформах.
  */
-export function RouteMap({ style }: RouteMapProps): React.JSX.Element {
+export const RouteMap = forwardRef<RouteMapHandle, RouteMapProps>(function RouteMap(
+  { style }: RouteMapProps,
+  ref,
+) {
+  useImperativeHandle(ref, () => ({
+    animateToRegion(_region: MapRegion, _durationMs = 600) {
+      // Демо-карта статична — движение камеры на web делать нечего.
+    },
+  }));
+
   return (
     <View style={[style ? null : styles.map, style]}>
       <Svg width="100%" height="100%" viewBox="0 0 390 700" preserveAspectRatio="xMidYMid slice">
@@ -97,7 +108,7 @@ export function RouteMap({ style }: RouteMapProps): React.JSX.Element {
       </Svg>
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   map: {

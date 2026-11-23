@@ -1,18 +1,14 @@
-import React from 'react';
+import React, { forwardRef, useImperativeHandle, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 import type { StyleProp, ViewStyle } from 'react-native';
 import MapView, { Marker, Polyline, UrlTile } from 'react-native-maps';
 
 import type { LatLng } from '../nav/types';
 import { colors } from '../ui/theme';
+import { centerRegion, DEFAULT_CENTER, fitRegion, type MapApi, type MapRegion } from './mapRegions';
 
 const OSM_TILE_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
-const DEFAULT_REGION = {
-  latitude: 55.7558,
-  longitude: 37.6173,
-  latitudeDelta: 0.05,
-  longitudeDelta: 0.05,
-};
+const DEFAULT_REGION = centerRegion(DEFAULT_CENTER);
 
 export interface RouteMapProps {
   shape?: LatLng[];
@@ -22,50 +18,52 @@ export interface RouteMapProps {
   interactive?: boolean;
 }
 
+export type RouteMapHandle = MapApi;
+
 function regionFor(shape: LatLng[], currentPosition: LatLng | null, destination: LatLng | null) {
   if (currentPosition) {
-    return {
-      latitude: currentPosition.lat,
-      longitude: currentPosition.lon,
-      latitudeDelta: 0.01,
-      longitudeDelta: 0.01,
-    };
+    return centerRegion(currentPosition);
   }
-
   const points = shape.length > 0 ? shape : destination ? [destination] : [];
   if (points.length === 0) return DEFAULT_REGION;
-
-  const lats = points.map((p) => p.lat);
-  const lons = points.map((p) => p.lon);
-  const minLat = Math.min(...lats);
-  const maxLat = Math.max(...lats);
-  const minLon = Math.min(...lons);
-  const maxLon = Math.max(...lons);
-  return {
-    latitude: (minLat + maxLat) / 2,
-    longitude: (minLon + maxLon) / 2,
-    latitudeDelta: Math.max((maxLat - minLat) * 1.6, 0.008),
-    longitudeDelta: Math.max((maxLon - minLon) * 1.6, 0.008),
-  };
+  return fitRegion(points);
 }
 
 /**
  * Нативная реализация (iOS/Android) — react-native-maps с тайлами OSM.
+ * Камера управляется императивно через ref (animateToRegion): начальный регион
+ * задаётся один раз через initialRegion, дальше экран сам двигает карту
+ * (сворачивание шторки, следование, кнопка «на место»).
  * У react-native-maps нет рабочей веб-реализации непосредственных компонентов
  * (Marker/Polyline/UrlTile падают при загрузке модуля в браузере), поэтому
  * есть RouteMap.web.tsx — Metro подставит его автоматически при сборке под web.
  */
-export function RouteMap({
-  shape = [],
-  currentPosition = null,
-  destination = null,
-  style,
-  interactive = true,
-}: RouteMapProps): React.JSX.Element {
+export const RouteMap = forwardRef<RouteMapHandle, RouteMapProps>(function RouteMap(
+  { shape = [], currentPosition = null, destination = null, style, interactive = true },
+  ref,
+) {
+  type MapViewRef = React.ElementRef<typeof MapView>;
+  const mapRef = useRef<MapViewRef>(null);
+
+  useImperativeHandle(ref, () => ({
+    animateToRegion(region: MapRegion, durationMs = 600) {
+      mapRef.current?.animateToRegion(
+        {
+          latitude: region.latitude,
+          longitude: region.longitude,
+          latitudeDelta: region.latitudeDelta,
+          longitudeDelta: region.longitudeDelta,
+        },
+        durationMs,
+      );
+    },
+  }));
+
   return (
     <MapView
+      ref={mapRef}
       style={[style ? null : styles.map, style]}
-      region={regionFor(shape, currentPosition, destination)}
+      initialRegion={regionFor(shape, currentPosition, destination)}
       mapType="none"
       scrollEnabled={interactive}
       zoomEnabled={interactive}
@@ -107,7 +105,7 @@ export function RouteMap({
       ) : null}
     </MapView>
   );
-}
+});
 
 const styles = StyleSheet.create({
   map: { height: 220, borderRadius: 8 },
